@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  jetson-vision:
+    build: .
+    runtime: nvidia
+    privileged: true
+    ports:
+      - "8000:8000"
+    devices:
+      - /dev/video0:/dev/video0
+    volumes:
+      - ./app:/app
+      - /tmp/argus_socket:/tmp/argus_socket
+    environment:
+      - PYTHONUNBUFFERED=1
+    network_mode: host
+    restart: unless-stopped

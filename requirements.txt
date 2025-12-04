@@ -1,0 +1,10 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+websockets==12.0
+# DO NOT install opencv-python on Jetson L4T images; use system OpenCV
+numpy==1.24.3
+pillow==10.1.0
+python-multipart==0.0.6
+aiofiles==23.2.1
+pydantic==2.5.0
+jinja2==3.1.2

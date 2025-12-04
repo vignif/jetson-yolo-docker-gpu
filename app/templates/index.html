@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jetson Camera Stream</title>
+  <style>
+    body{background:#111;color:#eee;font-family:system-ui;margin:0;padding:20px}
+    h1{color:#76b900;text-align:center}
+    #videoCanvas{width:100%;max-width:800px;height:auto;display:block;margin:20px auto;background:#000;border-radius:8px}
+    .status{max-width:800px;margin:0 auto;text-align:center;padding:8px;border-radius:6px}
+    .connected{background:#1f3;color:#9f9}
+    .disconnected{background:#311;color:#f99}
+  </style>
+  </head>
+<body>
+  <h1>Jetson Camera Stream</h1>
+  <div id="status" class="status disconnected">Disconnected</div>
+  <canvas id="videoCanvas" width="640" height="480"></canvas>
+  <script>
+    const canvas = document.getElementById('videoCanvas');
+    const ctx = canvas.getContext('2d');
+    const statusDiv = document.getElementById('status');
+    let ws;
+    function connect(){
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${proto}//${location.host}/ws/video`);
+      ws.onopen = ()=>{statusDiv.textContent='Connected';statusDiv.className='status connected';};
+      ws.onmessage = (evt)=>{
+        const {frame} = JSON.parse(evt.data);
+        const img = new Image();
+        img.onload = ()=>{ctx.drawImage(img,0,0,canvas.width,canvas.height)};
+        img.src = 'data:image/jpeg;base64,'+frame;
+      };
+      ws.onclose = ()=>{statusDiv.textContent='Disconnected';statusDiv.className='status disconnected';setTimeout(connect,2000)};
+      ws.onerror = (e)=>console.error('WebSocket error', e);
+    }
+    connect();
+  </script>
+</body>
+</html>
