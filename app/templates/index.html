@@ -9,28 +9,66 @@
     h1{color:#76b900;text-align:center}
     #videoCanvas{width:100%;max-width:800px;height:auto;display:block;margin:20px auto;background:#000;border-radius:8px}
     .status{max-width:800px;margin:0 auto;text-align:center;padding:8px;border-radius:6px}
-    .connected{background:#1f3;color:#9f9}
+    .connected{background:rgb(62, 113, 70);color:rgb(255, 255, 255)}
     .disconnected{background:#311;color:#f99}
   </style>
   </head>
 <body>
   <h1>Jetson Camera Stream</h1>
   <div id="status" class="status disconnected">Disconnected</div>
-  <canvas id="videoCanvas" width="640" height="480"></canvas>
+  <canvas id="videoCanvas" width="640" height="480" style="width:100%;display:block;"></canvas>
   <script>
     const canvas = document.getElementById('videoCanvas');
     const ctx = canvas.getContext('2d');
     const statusDiv = document.getElementById('status');
     let ws;
+    let loading = false;
     function connect(){
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
       ws = new WebSocket(`${proto}//${location.host}/ws/video`);
+      ws.binaryType = 'arraybuffer';
       ws.onopen = ()=>{statusDiv.textContent='Connected';statusDiv.className='status connected';};
       ws.onmessage = (evt)=>{
-        const {frame} = JSON.parse(evt.data);
-        const img = new Image();
-        img.onload = ()=>{ctx.drawImage(img,0,0,canvas.width,canvas.height)};
-        img.src = 'data:image/jpeg;base64,'+frame;
+        if (loading) return;
+        const data = evt.data;
+        if (data instanceof ArrayBuffer) {
+          loading = true;
+          const blob = new Blob([data], { type: 'image/jpeg' });
+          const url = URL.createObjectURL(blob);
+          const img = new Image();
+          img.onload = ()=>{
+            const w = img.naturalWidth;
+            const h = img.naturalHeight;
+            if (canvas.width !== w || canvas.height !== h) {
+              canvas.width = w;
+              canvas.height = h;
+              canvas.style.aspectRatio = `${w} / ${h}`;
+            }
+            ctx.drawImage(img, 0, 0);
+            URL.revokeObjectURL(url);
+            loading = false;
+          };
+          img.src = url;
+        } else {
+          // Fallback for JSON base64 frames
+          try {
+            const json = JSON.parse(data);
+            const img = new Image();
+            img.onload = ()=>{
+              const w = img.naturalWidth;
+              const h = img.naturalHeight;
+              if (canvas.width !== w || canvas.height !== h) {
+                canvas.width = w;
+                canvas.height = h;
+                canvas.style.aspectRatio = `${w} / ${h}`;
+              }
+              ctx.drawImage(img, 0, 0);
+            };
+            img.src = 'data:image/jpeg;base64,' + json.frame;
+          } catch (e) {
+            console.warn('Unknown message format');
+          }
+        }
       };
       ws.onclose = ()=>{statusDiv.textContent='Disconnected';statusDiv.className='status disconnected';setTimeout(connect,2000)};
       ws.onerror = (e)=>console.error('WebSocket error', e);

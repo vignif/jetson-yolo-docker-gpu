@@ -15,8 +15,8 @@ echo "Deploying to ${USER_NAME}@${HOST}:${REMOTE_DIR}"
 # 1) Create remote dir and sync files (no sudo required)
 ssh -o StrictHostKeyChecking=no ${USER_NAME}@${HOST} "mkdir -p ~/${REMOTE_DIR}"
 
-echo "Syncing files to remote..."
-rsync -avz --delete \
+echo "Syncing files to remote (no delete to avoid permission issues)..."
+rsync -avz \
   Dockerfile docker-compose.yml requirements.txt \
   app \
   ${USER_NAME}@${HOST}:~/${REMOTE_DIR}/
@@ -35,10 +35,18 @@ REMOTE_DIR="\$HOME/${REMOTE_DIR}"
 echo "${SUDO_PW}" | sudo -S -p '' true
 
 # Ensure Docker
-echo "${SUDO_PW}" | sudo -S -p '' apt-get update
-echo "${SUDO_PW}" | sudo -S -p '' apt-get install -y docker.io
-echo "${SUDO_PW}" | sudo -S -p '' systemctl enable docker
-echo "${SUDO_PW}" | sudo -S -p '' systemctl start docker
+# echo "${SUDO_PW}" | sudo -S -p '' apt-get update
+# echo "${SUDO_PW}" | sudo -S -p '' apt-get install -y docker.io
+# echo "${SUDO_PW}" | sudo -S -p '' systemctl enable docker
+# echo "${SUDO_PW}" | sudo -S -p '' systemctl start docker
+
+# Ensure docker-compose
+if ! command -v docker-compose >/dev/null 2>&1; then
+  echo "${SUDO_PW}" | sudo -S -p '' apt-get install -y docker-compose || {
+    echo "${SUDO_PW}" | sudo -S -p '' apt-get install -y python3-pip
+    echo "${SUDO_PW}" | sudo -S -p '' pip3 install docker-compose
+  }
+fi
 
 # Add current user to docker group
 echo "${SUDO_PW}" | sudo -S -p '' usermod -aG docker "\$USER" || true
@@ -53,12 +61,13 @@ if ! dpkg -s nvidia-docker2 >/dev/null 2>&1; then
   echo "${SUDO_PW}" | sudo -S -p '' systemctl restart docker
 fi
 
-# Build and start containers
+# Rebuild and start containers detached
 cd "\$REMOTE_DIR"
-docker-compose up -d --build
-
-# Show logs
-docker-compose logs -f jetson-vision || true
+echo "${SUDO_PW}" | sudo -S -p '' chown -R "\$USER":"\$USER" "\$REMOTE_DIR" || true
+echo "${SUDO_PW}" | sudo -S -p '' rm -rf "\$REMOTE_DIR/app/__pycache__" || true
+echo "${SUDO_PW}" | sudo -S -p '' docker-compose down || true
+echo "${SUDO_PW}" | sudo -S -p '' docker-compose up -d --build
+echo "Stack started detached. To view logs: docker-compose logs -f jetson-vision"
 EOS
 
 echo "Deployment complete. Access the app at: http://${HOST}:8000"

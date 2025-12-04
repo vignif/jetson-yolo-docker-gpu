@@ -3,7 +3,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 import asyncio
 import cv2
-import base64
 
 app = FastAPI(title="Jetson Camera Stream")
 
@@ -13,11 +12,12 @@ current_model = "none"
 
 class CameraCapture:
     def __init__(self):
+        # Match the working pipeline caps: 1280x720 @30fps, NVMM buffers
         self.pipeline = (
             "nvarguscamerasrc ! "
             "video/x-raw(memory:NVMM), width=1280, height=720, framerate=30/1 ! "
             "nvvidconv ! video/x-raw, format=BGRx ! "
-            "videoconvert ! video/x-raw, format=BGR ! appsink"
+            "videoconvert ! video/x-raw, format=BGR ! appsink drop=true max-buffers=1"
         )
         self.cap = cv2.VideoCapture(self.pipeline, cv2.CAP_GSTREAMER)
 
@@ -42,11 +42,16 @@ async def ws_video(websocket: WebSocket):
             if not ok:
                 await asyncio.sleep(0.05)
                 continue
-            frame = cv2.resize(frame, (640, 480))
-            _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-            b64 = base64.b64encode(buf).decode('utf-8')
-            await websocket.send_json({"frame": b64})
-            await asyncio.sleep(0.033)
+            # Preserve native resolution; do not resize
+            # Higher JPEG quality to avoid artifacts
+            ok_enc, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            if not ok_enc:
+                await asyncio.sleep(0)
+                continue
+            # Send as binary to reduce overhead
+            await websocket.send_bytes(buf.tobytes())
+            # Yield to event loop without pacing to 30fps artificially
+            await asyncio.sleep(0)
     except WebSocketDisconnect:
         pass
     finally:
