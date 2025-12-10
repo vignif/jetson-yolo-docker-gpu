@@ -1,4 +1,4 @@
-"""Face detection module using OpenCV Haar Cascades."""
+"""Face detection module using OpenCV with GPU acceleration."""
 import cv2
 import numpy as np
 import os
@@ -6,11 +6,132 @@ from typing import List, Tuple, Optional
 
 
 class FaceDetector:
-    """Handles face detection using Haar Cascade classifier."""
+    """Handles face detection using DNN with CUDA acceleration when available."""
     
-    def __init__(self):
-        """Initialize face detector with Haar Cascade."""
-        # Try multiple possible locations for Haar Cascade files
+    def __init__(self, use_gpu: bool = True):
+        """Initialize face detector with GPU acceleration if available.
+        
+        Args:
+            use_gpu: Whether to attempt using GPU acceleration
+        """
+        self.enabled = False
+        self.use_gpu = use_gpu
+        self.backend = "CPU"
+        self.detection_method = "haar"
+        
+        # Try GPU-accelerated DNN first
+        if use_gpu:
+            try:
+                dnn_initialized = self._init_dnn_detector()
+                if dnn_initialized:
+                    return
+            except Exception as e:
+                print(f"Failed to initialize GPU face detector: {e}")
+        
+        # Fallback to Haar Cascade (CPU)
+        print("Using Haar Cascade face detection (CPU)")
+        self._init_haar_detector()
+    
+    def _init_dnn_detector(self) -> bool:
+        """Initialize DNN-based face detection with GPU support.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        model_path = self._get_dnn_model()
+        config_path = self._get_dnn_config()
+        
+        if not model_path or not config_path:
+            return False
+        
+        print(f"Loading DNN model from {model_path}")
+        self.net = cv2.dnn.readNetFromCaffe(config_path, model_path)
+        
+        # Try to set CUDA backend
+        try:
+            cuda_available = cv2.cuda.getCudaEnabledDeviceCount() > 0
+            print(f"CUDA devices available: {cv2.cuda.getCudaEnabledDeviceCount() if cuda_available else 0}")
+        except Exception as e:
+            print(f"CUDA check failed: {e}")
+            cuda_available = False
+        
+        if cuda_available:
+            try:
+                self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+                self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
+                self.backend = "CUDA"
+                print("✓ Face detection using CUDA backend")
+            except Exception as e:
+                print(f"Failed to set CUDA backend: {e}")
+                self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+                self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+                self.backend = "DNN-CPU"
+                print("✓ Face detection using DNN CPU backend")
+        else:
+            self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+            self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+            self.backend = "DNN-CPU"
+            print("✓ Face detection using DNN CPU backend")
+        
+        self.detection_method = "dnn"
+        self.confidence_threshold = 0.5
+        return True
+    
+    def _init_haar_detector(self) -> None:
+        """Initialize Haar Cascade face detection (CPU fallback)."""
+        cascade_path = self._find_haar_cascade()
+        if cascade_path is None:
+            raise RuntimeError("Could not find Haar Cascade file")
+        
+        self.face_cascade = cv2.CascadeClassifier(cascade_path)
+        if self.face_cascade.empty():
+            raise RuntimeError(f"Failed to load cascade from {cascade_path}")
+        
+        self.detection_method = "haar"
+        self.backend = "CPU"
+    
+    def _get_dnn_model(self) -> Optional[str]:
+        """Get or download DNN face detection model."""
+        model_file = "/app/models/res10_300x300_ssd_iter_140000.caffemodel"
+        
+        if os.path.exists(model_file):
+            return model_file
+        
+        os.makedirs("/app/models", exist_ok=True)
+        
+        try:
+            import urllib.request
+            url = "https://raw.githubusercontent.com/opencv/opencv_3rdparty/dnn_samples_face_detector_20170830/res10_300x300_ssd_iter_140000.caffemodel"
+            print(f"Downloading face detection model (~10MB)...")
+            urllib.request.urlretrieve(url, model_file)
+            print(f"✓ Model downloaded to {model_file}")
+            return model_file
+        except Exception as e:
+            print(f"Failed to download model: {e}")
+            return None
+    
+    def _get_dnn_config(self) -> Optional[str]:
+        """Get or download DNN model config."""
+        config_file = "/app/models/deploy.prototxt"
+        
+        if os.path.exists(config_file):
+            return config_file
+        
+        os.makedirs("/app/models", exist_ok=True)
+        
+        try:
+            import urllib.request
+            url = "https://raw.githubusercontent.com/opencv/opencv/master/samples/dnn/face_detector/deploy.prototxt"
+            print(f"Downloading model config...")
+            urllib.request.urlretrieve(url, config_file)
+            print(f"✓ Config downloaded to {config_file}")
+            return config_file
+        except Exception as e:
+            print(f"Failed to download config: {e}")
+            return None
+    
+    def _find_haar_cascade(self) -> Optional[str]:
+        """Find Haar Cascade XML file."""
         possible_paths = [
             '/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml',
             '/usr/share/opencv/haarcascades/haarcascade_frontalface_default.xml',
@@ -18,30 +139,16 @@ class FaceDetector:
             '/usr/local/share/OpenCV/haarcascades/haarcascade_frontalface_default.xml',
         ]
         
-        # Try cv2.data if available
         try:
             if hasattr(cv2, 'data') and hasattr(cv2.data, 'haarcascades'):
                 possible_paths.insert(0, cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
         except:
             pass
         
-        cascade_path = None
         for path in possible_paths:
             if os.path.exists(path):
-                cascade_path = path
-                break
-        
-        if cascade_path is None:
-            raise RuntimeError(
-                f"Could not find haarcascade_frontalface_default.xml in any of these locations: {possible_paths}"
-            )
-        
-        self.face_cascade = cv2.CascadeClassifier(cascade_path)
-        if self.face_cascade.empty():
-            raise RuntimeError(f"Failed to load cascade classifier from {cascade_path}")
-        
-        self.enabled = False
-        self.backend = "CPU"
+                return path
+        return None
     
     def enable(self) -> None:
         """Enable face detection."""
@@ -71,10 +178,48 @@ class FaceDetector:
         if not self.enabled or frame is None:
             return []
         
-        # Convert to grayscale for detection
+        if self.detection_method == "dnn":
+            return self._detect_dnn(frame)
+        else:
+            return self._detect_haar(frame)
+    
+    def _detect_dnn(self, frame: np.ndarray) -> List[Tuple[int, int, int, int]]:
+        """Detect faces using DNN (GPU-accelerated if available)."""
+        h, w = frame.shape[:2]
+        
+        # Create blob from image
+        blob = cv2.dnn.blobFromImage(
+            cv2.resize(frame, (300, 300)),
+            1.0,
+            (300, 300),
+            (104.0, 177.0, 123.0)
+        )
+        
+        # Run inference
+        self.net.setInput(blob)
+        detections = self.net.forward()
+        
+        faces = []
+        for i in range(detections.shape[2]):
+            confidence = detections[0, 0, i, 2]
+            
+            if confidence > self.confidence_threshold:
+                box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+                (x1, y1, x2, y2) = box.astype("int")
+                
+                # Clamp to frame boundaries
+                x1, y1 = max(0, x1), max(0, y1)
+                x2, y2 = min(w, x2), min(h, y2)
+                
+                # Convert to (x, y, width, height)
+                faces.append((x1, y1, x2 - x1, y2 - y1))
+        
+        return faces
+    
+    def _detect_haar(self, frame: np.ndarray) -> List[Tuple[int, int, int, int]]:
+        """Detect faces using Haar Cascade (CPU)."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
-        # Detect faces
         faces = self.face_cascade.detectMultiScale(
             gray,
             scaleFactor=1.1,
