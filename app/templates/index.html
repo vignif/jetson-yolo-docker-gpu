@@ -19,6 +19,16 @@
   <div style="max-width:800px;margin:10px auto;display:flex;gap:20px;justify-content:center;font-size:14px;">
     <div>FPS: <span id="fps" style="color:#76b900;font-weight:bold;">0</span></div>
     <div>Memory: <span id="memory" style="color:#76b900;font-weight:bold;">0 MB</span></div>
+    <div>Current Quality: <span id="currentQuality" style="color:#76b900;font-weight:bold;">80</span></div>
+  </div>
+  <div style="max-width:800px;margin:10px auto;padding:10px;background:#222;border-radius:6px;">
+    <label style="display:flex;align-items:center;gap:10px;">
+      <span style="min-width:120px;">Set Quality:</span>
+      <input type="range" id="qualitySlider" min="50" max="100" value="80" step="5" 
+             style="flex:1;height:6px;background:#444;border-radius:3px;outline:none;">
+      <span id="sliderValue" style="min-width:35px;text-align:center;color:#76b900;font-weight:bold;">80</span>
+      <button id="applyQuality" style="padding:6px 16px;background:#76b900;color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:bold;">Apply</button>
+    </label>
   </div>
   <canvas id="videoCanvas" width="640" height="480" style="width:100%;display:block;"></canvas>
   <script>
@@ -79,6 +89,38 @@
     }
     connect();
     
+    // Quality control
+    const qualitySlider = document.getElementById('qualitySlider');
+    const sliderValue = document.getElementById('sliderValue');
+    const currentQuality = document.getElementById('currentQuality');
+    const applyQuality = document.getElementById('applyQuality');
+    
+    // Update slider display as user moves it (doesn't affect backend)
+    qualitySlider.addEventListener('input', (e) => {
+      sliderValue.textContent = e.target.value;
+    });
+    
+    applyQuality.addEventListener('click', async () => {
+      const quality = parseInt(qualitySlider.value);
+      try {
+        const res = await fetch('/api/quality', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({quality})
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          applyQuality.textContent = '✓ Applied';
+          currentQuality.textContent = data.quality;
+          setTimeout(() => applyQuality.textContent = 'Apply', 2000);
+        }
+      } catch (e) {
+        console.error('Failed to set quality', e);
+        applyQuality.textContent = '✗ Error';
+        setTimeout(() => applyQuality.textContent = 'Apply', 2000);
+      }
+    });
+    
     // Poll stats every second
     setInterval(async () => {
       try {
@@ -86,6 +128,8 @@
         const data = await res.json();
         document.getElementById('fps').textContent = data.actual_fps || 0;
         document.getElementById('memory').textContent = `${data.memory_mb || 0} MB (${data.memory_percent || 0}%)`;
+        // Update current quality display only (don't move the slider)
+        currentQuality.textContent = data.jpeg_quality || 80;
       } catch (e) {
         console.debug('Stats fetch error', e);
       }

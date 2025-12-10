@@ -44,12 +44,6 @@ class StreamingService:
         
         # Memory tracking
         self.process = psutil.Process()
-        
-        # FPS tracking
-        self.fps = 0.0
-        self._frame_count = 0
-        self._fps_start_time = time.time()
-        self._fps_update_interval = 1.0  # Update FPS every second
     
     async def start(self) -> None:
         """Start the streaming service."""
@@ -122,8 +116,6 @@ class StreamingService:
         """
         return self.latest_frame
     
-    def get_client_count(self) -> int:
-        """Get the number of connected clients."""
     def get_client_count(self) -> int:
         """Get the number of connected clients."""
         return self.client_manager.get_client_count()

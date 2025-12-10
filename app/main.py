@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 
 from streaming import StreamingService
 
@@ -109,6 +110,28 @@ async def stats():
         "jpeg_quality": streaming_service.encoder.quality,
         "memory_mb": memory["used_mb"],
         "memory_percent": memory["percent"]
+    }
+
+
+# Pydantic model for quality request
+class QualityRequest(BaseModel):
+    quality: int
+
+
+@app.post("/api/quality")
+async def set_quality(request: QualityRequest):
+    """Set JPEG encoding quality.
+    
+    Args:
+        request: Quality request with value (0-100)
+    """
+    if not 0 <= request.quality <= 100:
+        return {"error": "Quality must be between 0 and 100"}
+    
+    streaming_service.encoder.set_quality(request.quality)
+    return {
+        "status": "ok",
+        "quality": streaming_service.encoder.quality
     }
 
 

@@ -7,7 +7,7 @@ import numpy as np
 class FrameEncoder:
     """Handles frame encoding to JPEG format."""
     
-    DEFAULT_QUALITY = 95
+    DEFAULT_QUALITY = 80
     
     def __init__(self, quality: int = DEFAULT_QUALITY):
         """Initialize frame encoder.
