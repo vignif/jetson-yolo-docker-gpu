@@ -99,12 +99,16 @@ async def health():
 @app.get("/api/stats")
 async def stats():
     """Get streaming statistics."""
+    memory = streaming_service.get_memory_usage()
     return {
         "connected_clients": streaming_service.get_client_count(),
         "is_streaming": streaming_service.is_running,
         "camera_resolution": f"{streaming_service.camera.width}x{streaming_service.camera.height}",
         "camera_fps": streaming_service.camera.fps,
-        "jpeg_quality": streaming_service.encoder.quality
+        "actual_fps": streaming_service.get_fps(),
+        "jpeg_quality": streaming_service.encoder.quality,
+        "memory_mb": memory["used_mb"],
+        "memory_percent": memory["percent"]
     }
 
 

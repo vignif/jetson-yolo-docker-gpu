@@ -16,6 +16,10 @@
 <body>
   <h1>Jetson Camera Stream</h1>
   <div id="status" class="status disconnected">Disconnected</div>
+  <div style="max-width:800px;margin:10px auto;display:flex;gap:20px;justify-content:center;font-size:14px;">
+    <div>FPS: <span id="fps" style="color:#76b900;font-weight:bold;">0</span></div>
+    <div>Memory: <span id="memory" style="color:#76b900;font-weight:bold;">0 MB</span></div>
+  </div>
   <canvas id="videoCanvas" width="640" height="480" style="width:100%;display:block;"></canvas>
   <script>
     const canvas = document.getElementById('videoCanvas');
@@ -74,6 +78,18 @@
       ws.onerror = (e)=>console.error('WebSocket error', e);
     }
     connect();
+    
+    // Poll stats every second
+    setInterval(async () => {
+      try {
+        const res = await fetch('/api/stats');
+        const data = await res.json();
+        document.getElementById('fps').textContent = data.actual_fps || 0;
+        document.getElementById('memory').textContent = `${data.memory_mb || 0} MB (${data.memory_percent || 0}%)`;
+      } catch (e) {
+        console.debug('Stats fetch error', e);
+      }
+    }, 1000);
   </script>
 </body>
 </html>

@@ -1,6 +1,8 @@
 """Video streaming service that manages capture and broadcasting."""
 import asyncio
 import logging
+import time
+import psutil
 from typing import Optional
 
 from camera import CameraCapture
@@ -33,6 +35,21 @@ class StreamingService:
         self.latest_frame: Optional[bytes] = None
         self.is_running = False
         self.capture_task: Optional[asyncio.Task] = None
+        
+        # FPS tracking
+        self._frame_count = 0
+        self._fps_start_time = time.time()
+        self.fps = 0.0
+        self._fps_update_interval = 1.0  # Update FPS every second
+        
+        # Memory tracking
+        self.process = psutil.Process()
+        
+        # FPS tracking
+        self.fps = 0.0
+        self._frame_count = 0
+        self._fps_start_time = time.time()
+        self._fps_update_interval = 1.0  # Update FPS every second
     
     async def start(self) -> None:
         """Start the streaming service."""
@@ -77,6 +94,15 @@ class StreamingService:
                 # Store latest frame
                 self.latest_frame = jpeg_bytes
                 
+                # Update FPS counter
+                self._frame_count += 1
+                current_time = time.time()
+                elapsed = current_time - self._fps_start_time
+                if elapsed >= self._fps_update_interval:
+                    self.fps = self._frame_count / elapsed
+                    self._frame_count = 0
+                    self._fps_start_time = current_time
+                
                 # Broadcast to all clients
                 await self.client_manager.broadcast(jpeg_bytes)
                 
@@ -98,4 +124,33 @@ class StreamingService:
     
     def get_client_count(self) -> int:
         """Get the number of connected clients."""
+    def get_client_count(self) -> int:
+        """Get the number of connected clients."""
         return self.client_manager.get_client_count()
+    
+    def get_fps(self) -> float:
+        """Get the current frames per second.
+        
+        Returns:
+            Current FPS
+        """
+        return round(self.fps, 1)
+    
+    def get_memory_usage(self) -> dict:
+        """Get current memory usage statistics.
+        
+        Returns:
+            Dictionary with memory usage in MB and percentage
+        """
+        try:
+            memory_info = self.process.memory_info()
+            memory_mb = memory_info.rss / (1024 * 1024)
+            memory_percent = self.process.memory_percent()
+            
+            return {
+                "used_mb": round(memory_mb, 1),
+                "percent": round(memory_percent, 1)
+            }
+        except Exception as e:
+            logger.error(f"Error getting memory usage: {e}")
+            return {"used_mb": 0, "percent": 0}
