@@ -26,13 +26,13 @@ echo "Running setup with one sudo prompt using askpass..."
 read -s "?Enter remote sudo password: " SUDO_PW
 echo
 
-# Use ssh -tt to force TTY and pipe password to sudo -S
-ssh -tt -o StrictHostKeyChecking=no ${USER_NAME}@${HOST} "bash -s" <<EOS
-set -e
-REMOTE_DIR="\$HOME/${REMOTE_DIR}"
-
-# Cache sudo timestamp
-echo "${SUDO_PW}" | sudo -S -p '' true
+# # Use ssh -tt to force TTY and pipe password to sudo -S
+# ssh -tt -o StrictHostKeyChecking=no ${USER_NAME}@${HOST} "bash -s" <<EOS
+# set -e
+# REMOTE_DIR="\$HOME/${REMOTE_DIR}"
+# 
+# # Cache sudo timestamp
+# echo "${SUDO_PW}" | sudo -S -p '' true
 
 # Ensure Docker
 # echo "${SUDO_PW}" | sudo -S -p '' apt-get update

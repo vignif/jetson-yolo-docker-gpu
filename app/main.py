@@ -1,106 +1,112 @@
+"""Main FastAPI application for Jetson camera streaming."""
+import logging
+from pathlib import Path
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from typing import Set, Optional
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
-import asyncio
-import cv2
 
-app = FastAPI(title="Jetson Camera Stream")
+from streaming import StreamingService
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Initialize FastAPI app
+app = FastAPI(
+    title="Jetson Camera Stream",
+    description="Real-time camera streaming with WebSocket support",
+    version="1.0.0"
+)
+
+# Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-current_model = "none"
+# Initialize streaming service (will be started on app startup)
+streaming_service: StreamingService = StreamingService()
 
-class CameraCapture:
-    def __init__(self):
-        # Match the working pipeline caps: 1280x720 @30fps, NVMM buffers
-        self.pipeline = (
-            "nvarguscamerasrc ! "
-            "video/x-raw(memory:NVMM), width=1280, height=720, framerate=30/1 ! "
-            "nvvidconv ! video/x-raw, format=BGRx ! "
-            "videoconvert ! video/x-raw, format=BGR ! appsink drop=true max-buffers=1"
-        )
-        self.cap = cv2.VideoCapture(self.pipeline, cv2.CAP_GSTREAMER)
-
-    def read(self):
-        return self.cap.read()
-
-    def release(self):
-        self.cap.release()
-
-# Global capture loop and client management
-clients: Set[WebSocket] = set()
-latest_jpeg: Optional[bytes] = None
-capture_task: Optional[asyncio.Task] = None
-
-async def capture_loop():
-    global latest_jpeg
-    cam = CameraCapture()
-    try:
-        while True:
-            ok, frame = cam.read()
-            if not ok:
-                await asyncio.sleep(0.01)
-                continue
-            ok_enc, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
-            if not ok_enc:
-                await asyncio.sleep(0)
-                continue
-            latest_jpeg = buf.tobytes()
-            # Broadcast to connected clients; drop slow ones
-            if clients:
-                send_tasks = []
-                for ws in list(clients):
-                    try:
-                        # Skip if connection is closed
-                        if ws.application_state.name != 'CONNECTED':
-                            clients.discard(ws)
-                            continue
-                        # Send with small timeout to avoid blocking capture
-                        send_tasks.append(asyncio.wait_for(ws.send_bytes(latest_jpeg), timeout=0.02))
-                    except Exception:
-                        clients.discard(ws)
-                if send_tasks:
-                    # Gather with exceptions; do not raise
-                    try:
-                        await asyncio.gather(*send_tasks, return_exceptions=True)
-                    except Exception:
-                        pass
-            await asyncio.sleep(0)
-    finally:
-        cam.release()
 
 @app.on_event("startup")
 async def on_startup():
-    global capture_task
-    if capture_task is None:
-        capture_task = asyncio.create_task(capture_loop())
+    """Start streaming service when application starts."""
+    logger.info("Application starting up...")
+    await streaming_service.start()
 
-@app.get("/")
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    """Stop streaming service when application shuts down."""
+    logger.info("Application shutting down...")
+    await streaming_service.stop()
+
+
+@app.get("/", response_class=HTMLResponse)
 async def index():
-    with open("templates/index.html") as f:
+    """Serve the main HTML page."""
+    template_path = Path("templates/index.html")
+    if not template_path.exists():
+        return HTMLResponse(
+            content="<h1>Template not found</h1>",
+            status_code=500
+        )
+    
+    with open(template_path) as f:
         return HTMLResponse(content=f.read())
+
 
 @app.websocket("/ws/video")
 async def ws_video(websocket: WebSocket):
+    """WebSocket endpoint for video streaming.
+    
+    Clients connect here to receive real-time video frames.
+    """
     await websocket.accept()
-    clients.add(websocket)
+    streaming_service.client_manager.add_client(websocket)
+    
     try:
-        # On connect, send the latest frame immediately if available
-        if latest_jpeg is not None:
-            await websocket.send_bytes(latest_jpeg)
-        # Keep the connection open; frames are pushed by capture_loop
+        # Send latest frame immediately if available
+        latest_frame = streaming_service.get_latest_frame()
+        if latest_frame is not None:
+            await websocket.send_bytes(latest_frame)
+        
+        # Keep connection alive
+        # The streaming service broadcasts frames to all clients
         while True:
-            # Ping/pong handling could be added; for now just sleep
             await asyncio.sleep(1)
+            # Could add ping/pong here if needed
+    
     except WebSocketDisconnect:
-        pass
+        logger.debug("Client disconnected normally")
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
     finally:
-        try:
-            clients.remove(websocket)
-        except KeyError:
-            pass
+        streaming_service.client_manager.remove_client(websocket)
+
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    """Health check endpoint."""
+    return {
+        "status": "ok",
+        "clients": streaming_service.get_client_count(),
+        "streaming": streaming_service.is_running
+    }
+
+
+@app.get("/api/stats")
+async def stats():
+    """Get streaming statistics."""
+    return {
+        "connected_clients": streaming_service.get_client_count(),
+        "is_streaming": streaming_service.is_running,
+        "camera_resolution": f"{streaming_service.camera.width}x{streaming_service.camera.height}",
+        "camera_fps": streaming_service.camera.fps,
+        "jpeg_quality": streaming_service.encoder.quality
+    }
+
+
+# Import asyncio at the end to avoid circular imports
+import asyncio
