@@ -8,6 +8,7 @@ from typing import Optional
 from camera import CameraCapture
 from encoder import FrameEncoder
 from client_manager import ClientManager
+from face_detector import FaceDetector
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,8 @@ class StreamingService:
         self,
         camera: Optional[CameraCapture] = None,
         encoder: Optional[FrameEncoder] = None,
-        client_manager: Optional[ClientManager] = None
+        client_manager: Optional[ClientManager] = None,
+        face_detector: Optional[FaceDetector] = None
     ):
         """Initialize streaming service.
         
@@ -27,10 +29,12 @@ class StreamingService:
             camera: Camera capture instance (creates default if None)
             encoder: Frame encoder instance (creates default if None)
             client_manager: Client manager instance (creates default if None)
+            face_detector: Face detector instance (creates default if None)
         """
         self.camera = camera or CameraCapture()
         self.encoder = encoder or FrameEncoder()
         self.client_manager = client_manager or ClientManager()
+        self.face_detector = face_detector or FaceDetector()
         
         self.latest_frame: Optional[bytes] = None
         self.is_running = False
@@ -78,6 +82,11 @@ class StreamingService:
                 if not success:
                     await asyncio.sleep(0.01)
                     continue
+                
+                # Apply face detection if enabled
+                if self.face_detector.is_enabled():
+                    faces = self.face_detector.detect(frame)
+                    frame = self.face_detector.draw_faces(frame, faces)
                 
                 # Encode frame to JPEG
                 success, jpeg_bytes = self.encoder.encode(frame)

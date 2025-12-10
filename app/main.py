@@ -118,6 +118,11 @@ class QualityRequest(BaseModel):
     quality: int
 
 
+# Pydantic model for face detection request
+class FaceDetectionRequest(BaseModel):
+    enabled: bool
+
+
 @app.post("/api/quality")
 async def set_quality(request: QualityRequest):
     """Set JPEG encoding quality.
@@ -132,6 +137,32 @@ async def set_quality(request: QualityRequest):
     return {
         "status": "ok",
         "quality": streaming_service.encoder.quality
+    }
+
+
+@app.post("/api/face-detection")
+async def set_face_detection(request: FaceDetectionRequest):
+    """Enable or disable face detection.
+    
+    Args:
+        request: Face detection request with enabled flag
+    """
+    if request.enabled:
+        streaming_service.face_detector.enable()
+    else:
+        streaming_service.face_detector.disable()
+    
+    return {
+        "status": "ok",
+        "enabled": streaming_service.face_detector.is_enabled()
+    }
+
+
+@app.get("/api/face-detection")
+async def get_face_detection():
+    """Get current face detection status."""
+    return {
+        "enabled": streaming_service.face_detector.is_enabled()
     }
 
 

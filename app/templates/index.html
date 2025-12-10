@@ -30,6 +30,15 @@
       <button id="applyQuality" style="padding:6px 16px;background:#76b900;color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:bold;">Apply</button>
     </label>
   </div>
+  <div style="max-width:800px;margin:10px auto;padding:10px;background:#222;border-radius:6px;">
+    <label style="display:flex;align-items:center;gap:10px;">
+      <span style="min-width:120px;">Face Detection:</span>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="faceDetectionToggle" style="width:20px;height:20px;cursor:pointer;">
+        <span id="faceDetectionStatus" style="color:#888;">Disabled</span>
+      </label>
+    </label>
+  </div>
   <canvas id="videoCanvas" width="640" height="480" style="width:100%;display:block;"></canvas>
   <script>
     const canvas = document.getElementById('videoCanvas');
@@ -120,6 +129,41 @@
         setTimeout(() => applyQuality.textContent = 'Apply', 2000);
       }
     });
+    
+    // Face detection control
+    const faceDetectionToggle = document.getElementById('faceDetectionToggle');
+    const faceDetectionStatus = document.getElementById('faceDetectionStatus');
+    
+    faceDetectionToggle.addEventListener('change', async (e) => {
+      const enabled = e.target.checked;
+      try {
+        const res = await fetch('/api/face-detection', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({enabled})
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          faceDetectionStatus.textContent = data.enabled ? 'Enabled' : 'Disabled';
+          faceDetectionStatus.style.color = data.enabled ? '#76b900' : '#888';
+        }
+      } catch (e) {
+        console.error('Failed to toggle face detection', e);
+      }
+    });
+    
+    // Initialize face detection state
+    (async () => {
+      try {
+        const res = await fetch('/api/face-detection');
+        const data = await res.json();
+        faceDetectionToggle.checked = data.enabled;
+        faceDetectionStatus.textContent = data.enabled ? 'Enabled' : 'Disabled';
+        faceDetectionStatus.style.color = data.enabled ? '#76b900' : '#888';
+      } catch (e) {
+        console.debug('Failed to get face detection status', e);
+      }
+    })();
     
     // Poll stats every second
     setInterval(async () => {
