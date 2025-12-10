@@ -11,21 +11,35 @@
     .status{max-width:800px;margin:0 auto;text-align:center;padding:8px;border-radius:6px}
     .connected{background:rgb(62, 113, 70);color:rgb(255, 255, 255)}
     .disconnected{background:#311;color:#f99}
+    .stats-header{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#333;border-radius:6px;margin-bottom:5px;}
+    .stats-header:hover{background:#444}
+    .stats-toggle{transition:transform 0.2s;}
+    .stats-toggle.collapsed{transform:rotate(-90deg);}
+    .stats-content{max-height:500px;overflow:hidden;transition:max-height 0.3s ease-out;}
+    .stats-content.collapsed{max-height:0;}
   </style>
   </head>
 <body>
   <h1>Jetson Camera Stream</h1>
   <div id="status" class="status disconnected">Disconnected</div>
-  <div style="max-width:800px;margin:10px auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:15px;font-size:13px;padding:10px;background:#222;border-radius:6px;">
-    <div>FPS: <span id="fps" style="color:#76b900;font-weight:bold;">0</span></div>
-    <div>Memory: <span id="memory" style="color:#76b900;font-weight:bold;">0 MB</span></div>
-    <div>Quality: <span id="currentQuality" style="color:#76b900;font-weight:bold;">80</span></div>
-    <div>Backend: <span id="backend" style="color:#76b900;font-weight:bold;">CPU</span></div>
-    <div>CPU: <span id="cpuUsage" style="color:#76b900;font-weight:bold;">-</span></div>
-    <div>Temp: <span id="temperature" style="color:#76b900;font-weight:bold;">-</span></div>
-    <div>Fan: <span id="fanSpeed" style="color:#76b900;font-weight:bold;">-</span></div>
-    <div>Power: <span id="powerMode" style="color:#76b900;font-weight:bold;">-</span></div>
-    <div>Uptime: <span id="uptime" style="color:#76b900;font-weight:bold;">-</span></div>
+  <div style="max-width:800px;margin:10px auto;">
+    <div class="stats-header" onclick="toggleStats()">
+      <span style="font-weight:bold;font-size:14px;">System Statistics</span>
+      <span class="stats-toggle" id="statsToggle">▼</span>
+    </div>
+    <div class="stats-content" id="statsContent">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:15px;font-size:13px;padding:10px;background:#222;border-radius:6px;">
+        <div>FPS: <span id="fps" style="color:#76b900;font-weight:bold;">0</span></div>
+        <div>Memory: <span id="memory" style="color:#76b900;font-weight:bold;">0 MB</span></div>
+        <div>Quality: <span id="currentQuality" style="color:#76b900;font-weight:bold;">80</span></div>
+        <div>Backend: <span id="backend" style="color:#76b900;font-weight:bold;">CPU</span></div>
+        <div>CPU: <span id="cpuUsage" style="color:#76b900;font-weight:bold;">-</span></div>
+        <div>Temp: <span id="temperature" style="color:#76b900;font-weight:bold;">-</span></div>
+        <div>Fan: <span id="fanSpeed" style="color:#76b900;font-weight:bold;">-</span></div>
+        <div>Power: <span id="powerMode" style="color:#76b900;font-weight:bold;">-</span></div>
+        <div>Uptime: <span id="uptime" style="color:#76b900;font-weight:bold;">-</span></div>
+      </div>
+    </div>
   </div>
   <div style="max-width:800px;margin:10px auto;padding:10px;background:#222;border-radius:6px;">
     <label style="display:flex;align-items:center;gap:10px;">
@@ -47,6 +61,14 @@
   </div>
   <canvas id="videoCanvas" width="640" height="480" style="width:100%;display:block;"></canvas>
   <script>
+    // Stats collapse/expand toggle
+    function toggleStats() {
+      const content = document.getElementById('statsContent');
+      const toggle = document.getElementById('statsToggle');
+      content.classList.toggle('collapsed');
+      toggle.classList.toggle('collapsed');
+    }
+    
     const canvas = document.getElementById('videoCanvas');
     const ctx = canvas.getContext('2d');
     const statusDiv = document.getElementById('status');
