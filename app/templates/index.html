@@ -16,10 +16,16 @@
 <body>
   <h1>Jetson Camera Stream</h1>
   <div id="status" class="status disconnected">Disconnected</div>
-  <div style="max-width:800px;margin:10px auto;display:flex;gap:20px;justify-content:center;font-size:14px;">
+  <div style="max-width:800px;margin:10px auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:15px;font-size:13px;padding:10px;background:#222;border-radius:6px;">
     <div>FPS: <span id="fps" style="color:#76b900;font-weight:bold;">0</span></div>
     <div>Memory: <span id="memory" style="color:#76b900;font-weight:bold;">0 MB</span></div>
-    <div>Current Quality: <span id="currentQuality" style="color:#76b900;font-weight:bold;">80</span></div>
+    <div>Quality: <span id="currentQuality" style="color:#76b900;font-weight:bold;">80</span></div>
+    <div>Backend: <span id="backend" style="color:#76b900;font-weight:bold;">CPU</span></div>
+    <div>CPU: <span id="cpuUsage" style="color:#76b900;font-weight:bold;">-</span></div>
+    <div>Temp: <span id="temperature" style="color:#76b900;font-weight:bold;">-</span></div>
+    <div>Fan: <span id="fanSpeed" style="color:#76b900;font-weight:bold;">-</span></div>
+    <div>Power: <span id="powerMode" style="color:#76b900;font-weight:bold;">-</span></div>
+    <div>Uptime: <span id="uptime" style="color:#76b900;font-weight:bold;">-</span></div>
   </div>
   <div style="max-width:800px;margin:10px auto;padding:10px;background:#222;border-radius:6px;">
     <label style="display:flex;align-items:center;gap:10px;">
@@ -172,6 +178,31 @@
         const data = await res.json();
         document.getElementById('fps').textContent = data.actual_fps || 0;
         document.getElementById('memory').textContent = `${data.memory_mb || 0} MB (${data.memory_percent || 0}%)`;
+        document.getElementById('backend').textContent = data.face_detection_backend || 'CPU';
+        document.getElementById('currentQuality').textContent = data.jpeg_quality || 80;
+        
+        // System stats
+        document.getElementById('cpuUsage').textContent = data.cpu_usage !== null ? `${data.cpu_usage}%` : '-';
+        document.getElementById('uptime').textContent = data.uptime || '-';
+        document.getElementById('powerMode').textContent = data.power_mode || '-';
+        
+        // Temperature
+        if (data.temperature && Object.keys(data.temperature).length > 0) {
+          const temps = Object.entries(data.temperature)
+            .map(([k, v]) => `${k.toUpperCase()}: ${v}°C`)
+            .join(', ');
+          document.getElementById('temperature').textContent = temps;
+        } else {
+          document.getElementById('temperature').textContent = '-';
+        }
+        
+        // Fan speed
+        if (data.fan_speed !== null) {
+          const fanPercent = Math.round((data.fan_speed / 255) * 100);
+          document.getElementById('fanSpeed').textContent = `${fanPercent}%`;
+        } else {
+          document.getElementById('fanSpeed').textContent = '-';
+        }
         // Update current quality display only (don't move the slider)
         currentQuality.textContent = data.jpeg_quality || 80;
       } catch (e) {

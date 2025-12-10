@@ -101,6 +101,8 @@ async def health():
 async def stats():
     """Get streaming statistics."""
     memory = streaming_service.get_memory_usage()
+    system_stats = streaming_service.system_monitor.get_all_stats()
+    
     return {
         "connected_clients": streaming_service.get_client_count(),
         "is_streaming": streaming_service.is_running,
@@ -109,7 +111,13 @@ async def stats():
         "actual_fps": streaming_service.get_fps(),
         "jpeg_quality": streaming_service.encoder.quality,
         "memory_mb": memory["used_mb"],
-        "memory_percent": memory["percent"]
+        "memory_percent": memory["percent"],
+        "face_detection_backend": streaming_service.face_detector.get_backend(),
+        "temperature": system_stats["temperature"],
+        "fan_speed": system_stats["fan_speed"],
+        "power_mode": system_stats["power_mode"],
+        "cpu_usage": system_stats["cpu_usage"],
+        "uptime": system_stats["uptime"]
     }
 
 

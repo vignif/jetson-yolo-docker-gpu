@@ -9,6 +9,7 @@ from camera import CameraCapture
 from encoder import FrameEncoder
 from client_manager import ClientManager
 from face_detector import FaceDetector
+from system_monitor import SystemMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ class StreamingService:
         self.encoder = encoder or FrameEncoder()
         self.client_manager = client_manager or ClientManager()
         self.face_detector = face_detector or FaceDetector()
+        self.system_monitor = SystemMonitor()
         
         self.latest_frame: Optional[bytes] = None
         self.is_running = False

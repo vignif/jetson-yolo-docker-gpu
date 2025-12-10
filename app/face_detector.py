@@ -41,6 +41,7 @@ class FaceDetector:
             raise RuntimeError(f"Failed to load cascade classifier from {cascade_path}")
         
         self.enabled = False
+        self.backend = "CPU"
     
     def enable(self) -> None:
         """Enable face detection."""
@@ -53,6 +54,10 @@ class FaceDetector:
     def is_enabled(self) -> bool:
         """Check if face detection is enabled."""
         return self.enabled
+    
+    def get_backend(self) -> str:
+        """Get current backend being used."""
+        return self.backend
     
     def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int]]:
         """Detect faces in the frame.
