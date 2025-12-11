@@ -58,7 +58,8 @@ class StreamingService:
             return
         
         self.is_running = True
-        self.capture_task = asyncio.create_task(self._capture_loop())
+        # Python 3.6 compatible: use ensure_future instead of create_task
+        self.capture_task = asyncio.ensure_future(self._capture_loop())
         logger.info("Streaming service started")
     
     async def stop(self) -> None:

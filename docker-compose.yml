@@ -5,14 +5,56 @@ services:
     build: .
     runtime: nvidia
     privileged: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, compute, utility]
     ports:
       - "8000:8000"
     devices:
       - /dev/video0:/dev/video0
+      # NVIDIA GPU devices for CUDA
+      - /dev/nvhost-gpu:/dev/nvhost-gpu
+      - /dev/nvhost-ctrl:/dev/nvhost-ctrl
+      - /dev/nvhost-ctrl-gpu:/dev/nvhost-ctrl-gpu
+      - /dev/nvhost-as-gpu:/dev/nvhost-as-gpu
+      - /dev/nvhost-dbg-gpu:/dev/nvhost-dbg-gpu
+      - /dev/nvhost-prof-gpu:/dev/nvhost-prof-gpu
+      - /dev/nvhost-tsg-gpu:/dev/nvhost-tsg-gpu
+      - /dev/nvhost-sched-gpu:/dev/nvhost-sched-gpu
+      - /dev/nvhost-ctxsw-gpu:/dev/nvhost-ctxsw-gpu
+      - /dev/nvmap:/dev/nvmap
+      # ISP/Camera devices
+      - /dev/nvhost-ctrl-isp:/dev/nvhost-ctrl-isp
+      - /dev/nvhost-ctrl-vi:/dev/nvhost-ctrl-vi
     volumes:
       - ./app:/app
       - /tmp/argus_socket:/tmp/argus_socket
+      # Mount NVIDIA tegra libraries for CUDA support
+      - /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra:ro
+      - /usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra-egl:ro
+      # Mount CUDA 10.2 libraries from host
+      - /usr/local/cuda-10.2:/usr/local/cuda-10.2:ro
+      # Mount cuDNN libraries from host (override empty stubs in container)
+      - /usr/lib/aarch64-linux-gnu/libcudnn.so.8.2.1:/usr/lib/aarch64-linux-gnu/libcudnn.so.8.2.1:ro
+      - /usr/lib/aarch64-linux-gnu/libcudnn_adv_infer.so.8.2.1:/usr/lib/aarch64-linux-gnu/libcudnn_adv_infer.so.8.2.1:ro
+      - /usr/lib/aarch64-linux-gnu/libcudnn_adv_train.so.8.2.1:/usr/lib/aarch64-linux-gnu/libcudnn_adv_train.so.8.2.1:ro
+      - /usr/lib/aarch64-linux-gnu/libcudnn_cnn_infer.so.8.2.1:/usr/lib/aarch64-linux-gnu/libcudnn_cnn_infer.so.8.2.1:ro
+      - /usr/lib/aarch64-linux-gnu/libcudnn_cnn_train.so.8.2.1:/usr/lib/aarch64-linux-gnu/libcudnn_cnn_train.so.8.2.1:ro
+      - /usr/lib/aarch64-linux-gnu/libcudnn_ops_infer.so.8.2.1:/usr/lib/aarch64-linux-gnu/libcudnn_ops_infer.so.8.2.1:ro
+      - /usr/lib/aarch64-linux-gnu/libcudnn_ops_train.so.8.2.1:/usr/lib/aarch64-linux-gnu/libcudnn_ops_train.so.8.2.1:ro
+      # Mount system Python OpenCV with GStreamer support
+      - /usr/lib/python3.6/dist-packages/cv2:/usr/local/lib/python3.6/dist-packages/cv2:ro
+      # Mount OpenCV shared libraries from host
+      - /usr/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu:ro
     environment:
       - PYTHONUNBUFFERED=1
+      - CUDA_VISIBLE_DEVICES=0
+      - LD_LIBRARY_PATH=/usr/local/cuda-10.2/lib64:/usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu
+      - LC_ALL=C.UTF-8
+      - LANG=C.UTF-8
     network_mode: host
     restart: unless-stopped

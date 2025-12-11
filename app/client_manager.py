@@ -1,5 +1,5 @@
 """WebSocket client manager for broadcasting video frames."""
-from typing import Set
+from typing import List
 from fastapi import WebSocket
 import asyncio
 import logging
@@ -16,17 +16,18 @@ class ClientManager:
         Args:
             send_timeout: Maximum time to wait when sending to a client (seconds)
         """
-        self.clients: Set[WebSocket] = set()
+        self.clients: List[WebSocket] = []
         self.send_timeout = send_timeout
     
     def add_client(self, websocket: WebSocket) -> None:
         """Add a new WebSocket client."""
-        self.clients.add(websocket)
+        self.clients.append(websocket)
         logger.info(f"Client connected. Total clients: {len(self.clients)}")
     
     def remove_client(self, websocket: WebSocket) -> None:
         """Remove a WebSocket client."""
-        self.clients.discard(websocket)
+        if websocket in self.clients:
+            self.clients.remove(websocket)
         logger.info(f"Client disconnected. Total clients: {len(self.clients)}")
     
     def get_client_count(self) -> int:
@@ -49,7 +50,8 @@ class ClientManager:
             try:
                 # Check if connection is still valid
                 if ws.application_state.name != 'CONNECTED':
-                    self.clients.discard(ws)
+                    if ws in self.clients:
+                        self.clients.remove(ws)
                     continue
                 
                 # Create send task with timeout to avoid blocking
@@ -61,7 +63,8 @@ class ClientManager:
                 )
             except Exception as e:
                 logger.debug(f"Error preparing send task: {e}")
-                self.clients.discard(ws)
+                if ws in self.clients:
+                    self.clients.remove(ws)
         
         if send_tasks:
             # Execute all sends concurrently, ignoring exceptions

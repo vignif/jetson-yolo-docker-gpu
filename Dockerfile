@@ -1,10 +1,16 @@
-# NVIDIA L4T PyTorch image for Jetson (includes CUDA/TensorRT)
-FROM nvcr.io/nvidia/l4t-pytorch:r35.2.1-pth2.0-py3
+# NVIDIA L4T PyTorch image for Jetson Nano (R32 = JetPack 4.x with CUDA 10.2)
+FROM nvcr.io/nvidia/l4t-pytorch:r32.7.1-pth1.10-py3
+
+# Set CUDA library paths
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra-egl:${LD_LIBRARY_PATH}
+ENV PATH=/usr/local/cuda/bin:${PATH}
 
 WORKDIR /app
 
-# System deps for GStreamer + camera + OpenCV
-RUN apt-get update && apt-get install -y \
+# Remove Kitware APT repository and install system dependencies
+RUN sed -i '/kitware/d' /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true && \
+    rm -f /etc/apt/sources.list.d/kitware*.list && \
+    apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python3-dev \
     libgstreamer1.0-0 \
@@ -17,7 +23,13 @@ RUN apt-get update && apt-get install -y \
     libgstreamer-plugins-base1.0-dev \
     libgstrtspserver-1.0-dev \
     v4l-utils \
-    && rm -rf /var/lib/apt/lists/*
+    libopenmpi-dev \
+    openmpi-bin \
+    && rm -rf /var/lib/apt/lists/* && \
+    ldconfig && \
+    find /usr -name "libmpi_cxx.so*" 2>/dev/null && \
+    ln -sf /usr/lib/aarch64-linux-gnu/openmpi/lib/libmpi_cxx.so.1 /usr/lib/aarch64-linux-gnu/libmpi_cxx.so.20 || \
+    ln -sf $(find /usr -name "libmpi_cxx.so.1*" 2>/dev/null | head -1) /usr/lib/aarch64-linux-gnu/libmpi_cxx.so.20
 
 # Install Python packages
 COPY requirements.txt ./

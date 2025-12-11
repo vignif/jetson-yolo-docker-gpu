@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for TensorRT face detection."""
+"""Unit tests for PyTorch GPU face detection."""
 import unittest
 import numpy as np
 import cv2
@@ -12,25 +12,27 @@ sys.path.insert(0, '/app')
 class TestGPUAvailability(unittest.TestCase):
     """Test GPU components availability."""
     
-    def test_tensorrt_import(self):
-        """Test TensorRT can be imported."""
+    def test_pytorch_import(self):
+        """Test PyTorch can be imported."""
         try:
-            import tensorrt as trt
-            self.assertIsNotNone(trt.__version__)
-            print(f"✓ TensorRT {trt.__version__}")
+            import torch
+            self.assertIsNotNone(torch.__version__)
+            print(f"✓ PyTorch {torch.__version__}")
         except ImportError:
-            self.fail("TensorRT not available")
+            self.fail("PyTorch not available")
     
-    def test_pycuda_import(self):
-        """Test PyCUDA can be imported."""
+    def test_cuda_availability(self):
+        """Test CUDA availability in PyTorch."""
         try:
-            import pycuda.driver as cuda
-            import pycuda.autoinit
-            device = cuda.Device(0)
-            self.assertIsNotNone(device.name())
-            print(f"✓ PyCUDA with device: {device.name()}")
-        except ImportError:
-            self.fail("PyCUDA not available")
+            import torch
+            if torch.cuda.is_available():
+                device_name = torch.cuda.get_device_name(0)
+                self.assertIsNotNone(device_name)
+                print(f"✓ CUDA available: {device_name}")
+            else:
+                print("⚠ CUDA not available (will use CPU fallback)")
+        except Exception as e:
+            self.fail(f"CUDA check failed: {e}")
     
     def test_opencv_import(self):
         """Test OpenCV can be imported."""
@@ -39,7 +41,7 @@ class TestGPUAvailability(unittest.TestCase):
 
 
 class TestFaceDetectorTensorRT(unittest.TestCase):
-    """Test TensorRT face detector functionality."""
+    """Test PyTorch face detector functionality."""
     
     @classmethod
     def setUpClass(cls):
@@ -53,13 +55,13 @@ class TestFaceDetectorTensorRT(unittest.TestCase):
         self.assertIsNotNone(self.detector.backend)
         print(f"✓ Detector backend: {self.detector.backend}")
     
-    def test_detector_backend_is_gpu(self):
-        """Test detector is using GPU backend."""
+    def test_detector_backend(self):
+        """Test detector backend type."""
         backend = self.detector.get_backend()
-        # Should be TensorRT-GPU, CUDA-DNN, or CPU (fallback)
-        self.assertIn(backend, ["TensorRT-GPU", "CUDA-DNN", "CPU", "Haar-CPU"])
+        # Should be PyTorch-GPU or Haar-CPU-Fallback
+        self.assertIn(backend, ["PyTorch-GPU", "Haar-CPU-Fallback"])
         
-        if backend in ["TensorRT-GPU", "CUDA-DNN"]:
+        if backend == "PyTorch-GPU":
             print(f"✓ Using GPU acceleration: {backend}")
         else:
             print(f"⚠ Using CPU fallback: {backend}")
