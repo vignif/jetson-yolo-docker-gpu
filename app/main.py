@@ -58,6 +58,20 @@ async def index():
         return HTMLResponse(content=f.read())
 
 
+@app.get("/gpu", response_class=HTMLResponse)
+async def gpu_status_page():
+    """Serve the GPU status dashboard page."""
+    template_path = Path("templates/gpu_status.html")
+    if not template_path.exists():
+        return HTMLResponse(
+            content="<h1>GPU Status template not found</h1>",
+            status_code=500
+        )
+    
+    with open(template_path) as f:
+        return HTMLResponse(content=f.read())
+
+
 @app.websocket("/ws/video")
 async def ws_video(websocket: WebSocket):
     """WebSocket endpoint for video streaming.
@@ -172,6 +186,90 @@ async def get_face_detection():
     return {
         "enabled": streaming_service.face_detector.is_enabled()
     }
+
+
+@app.get("/api/gpu-status")
+async def gpu_status():
+    """Get GPU availability and status."""
+    import sys
+    sys.path.insert(0, '/app')
+    
+    status = {
+        "tensorrt_available": False,
+        "pycuda_available": False,
+        "cuda_device_available": False,
+        "backend": streaming_service.face_detector.get_backend(),
+        "gpu_accelerated": False
+    }
+    
+    # Check TensorRT
+    try:
+        import tensorrt as trt
+        status["tensorrt_available"] = True
+        status["tensorrt_version"] = trt.__version__
+    except:
+        pass
+    
+    # Check PyCUDA
+    try:
+        import pycuda.driver as cuda
+        import pycuda.autoinit
+        status["pycuda_available"] = True
+        
+        # Get device info
+        device = cuda.Device(0)
+        status["cuda_device_available"] = True
+        status["gpu_name"] = device.name()
+        status["compute_capability"] = f"{device.compute_capability()[0]}.{device.compute_capability()[1]}"
+        status["total_memory_gb"] = round(device.total_memory() / (1024**3), 2)
+    except:
+        pass
+    
+    # Determine if GPU accelerated
+    backend = status["backend"]
+    status["gpu_accelerated"] = backend in ["TensorRT-GPU", "CUDA-DNN"]
+    
+    return status
+
+
+@app.get("/api/run-gpu-tests")
+async def run_gpu_tests():
+    """Run GPU health checks and tests."""
+    import subprocess
+    import sys
+    
+    results = {
+        "health_check": {"passed": False, "output": ""},
+        "unit_tests": {"passed": False, "output": ""}
+    }
+    
+    # Run health check
+    try:
+        result = subprocess.run(
+            [sys.executable, "/app/gpu_health_check.py"],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        results["health_check"]["output"] = result.stdout + result.stderr
+        results["health_check"]["passed"] = result.returncode == 0
+    except Exception as e:
+        results["health_check"]["output"] = f"Error: {e}"
+    
+    # Run unit tests
+    try:
+        result = subprocess.run(
+            [sys.executable, "/app/test_face_detection.py"],
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        results["unit_tests"]["output"] = result.stdout + result.stderr
+        results["unit_tests"]["passed"] = result.returncode == 0
+    except Exception as e:
+        results["unit_tests"]["output"] = f"Error: {e}"
+    
+    return results
 
 
 # Import asyncio at the end to avoid circular imports

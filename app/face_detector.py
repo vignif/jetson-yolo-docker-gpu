@@ -19,6 +19,12 @@ class FaceDetector:
         self.backend = "CPU"
         self.detection_method = "haar"
         
+        # Performance optimization settings
+        self.frame_skip = 3  # Detect faces every N frames
+        self.frame_count = 0
+        self.last_faces = []  # Cache last detection results
+        self.detection_scale = 0.5  # Scale factor for detection (0.5 = half size)
+        
         # Try GPU-accelerated DNN first
         if use_gpu:
             try:
@@ -66,15 +72,17 @@ class FaceDetector:
                 self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
                 self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
                 self.backend = "DNN-CPU"
-                print("✓ Face detection using DNN CPU backend")
+                print("✓ Face detection using DNN CPU backend (optimized)")
         else:
             self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
             self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
             self.backend = "DNN-CPU"
-            print("✓ Face detection using DNN CPU backend")
+            print("✓ Face detection using DNN CPU backend (optimized)")
         
         self.detection_method = "dnn"
         self.confidence_threshold = 0.5
+        # Use smaller detection size for DNN to improve speed
+        self.dnn_input_size = 160  # Reduced from 300 for faster inference
         return True
     
     def _init_haar_detector(self) -> None:
@@ -166,8 +174,30 @@ class FaceDetector:
         """Get current backend being used."""
         return self.backend
     
+    def set_performance_mode(self, mode: str) -> None:
+        """Set performance optimization mode.
+        
+        Args:
+            mode: 'fast' (skip more frames, lower res) or 'accurate' (skip fewer frames, higher res)
+        """
+        if mode == "fast":
+            self.frame_skip = 5
+            self.detection_scale = 0.4
+            self.dnn_input_size = 128
+            print("Face detection: FAST mode (5 frame skip, 0.4x scale)")
+        elif mode == "accurate":
+            self.frame_skip = 2
+            self.detection_scale = 0.75
+            self.dnn_input_size = 300
+            print("Face detection: ACCURATE mode (2 frame skip, 0.75x scale)")
+        else:  # balanced
+            self.frame_skip = 3
+            self.detection_scale = 0.5
+            self.dnn_input_size = 160
+            print("Face detection: BALANCED mode (3 frame skip, 0.5x scale)")
+    
     def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int]]:
-        """Detect faces in the frame.
+        """Detect faces in the frame with frame skipping optimization.
         
         Args:
             frame: Input frame as numpy array (BGR format)
@@ -178,20 +208,62 @@ class FaceDetector:
         if not self.enabled or frame is None:
             return []
         
-        if self.detection_method == "dnn":
-            return self._detect_dnn(frame)
-        else:
-            return self._detect_haar(frame)
+        self.frame_count += 1
+        
+        # Skip frames to improve performance
+        if self.frame_count % self.frame_skip != 0:
+            # Return cached results
+            return self.last_faces
+        
+        try:
+            # Downscale frame for faster detection
+            if self.detection_scale < 1.0:
+                small_frame = cv2.resize(frame, None, fx=self.detection_scale, fy=self.detection_scale)
+            else:
+                small_frame = frame
+            
+            # Run detection on smaller frame
+            if self.detection_method == "dnn":
+                faces = self._detect_dnn(small_frame)
+            else:
+                faces = self._detect_haar(small_frame)
+            
+            # Scale bounding boxes back to original size
+            if self.detection_scale < 1.0:
+                scale_factor = 1.0 / self.detection_scale
+                faces = [(int(x * scale_factor), int(y * scale_factor), 
+                         int(w * scale_factor), int(h * scale_factor)) for (x, y, w, h) in faces]
+            
+            # Cache results
+            self.last_faces = faces
+            return faces
+        except Exception as e:
+            print(f"Detection error: {e}, falling back to Haar Cascade")
+            # Fall back to Haar Cascade on error
+            if self.detection_method == "dnn":
+                try:
+                    self._init_haar_detector()
+                    self.detection_method = "haar"
+                except:
+                    pass
+            return self.last_faces
     
     def _detect_dnn(self, frame: np.ndarray) -> List[Tuple[int, int, int, int]]:
-        """Detect faces using DNN (GPU-accelerated if available)."""
+        """Detect faces using DNN (optimized for speed)."""
         h, w = frame.shape[:2]
+        
+        # Validate frame dimensions
+        if h <= 0 or w <= 0:
+            return []
+        
+        # Use smaller input size for faster inference
+        input_size = getattr(self, 'dnn_input_size', 300)
         
         # Create blob from image
         blob = cv2.dnn.blobFromImage(
-            cv2.resize(frame, (300, 300)),
+            cv2.resize(frame, (input_size, input_size)),
             1.0,
-            (300, 300),
+            (input_size, input_size),
             (104.0, 177.0, 123.0)
         )
         

@@ -2,6 +2,7 @@ fastapi==0.104.1
 uvicorn[standard]==0.24.0
 websockets==12.0
 # DO NOT install opencv-python on Jetson L4T images; use system OpenCV
+# DO NOT install pycuda via pip; use system python3-pycuda package
 numpy==1.24.3
 pillow==10.1.0
 python-multipart==0.0.6

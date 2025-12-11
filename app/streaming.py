@@ -8,7 +8,7 @@ from typing import Optional
 from camera import CameraCapture
 from encoder import FrameEncoder
 from client_manager import ClientManager
-from face_detector import FaceDetector
+from face_detector_tensorrt import FaceDetectorTensorRT
 from system_monitor import SystemMonitor
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ class StreamingService:
         camera: Optional[CameraCapture] = None,
         encoder: Optional[FrameEncoder] = None,
         client_manager: Optional[ClientManager] = None,
-        face_detector: Optional[FaceDetector] = None
+        face_detector: Optional[FaceDetectorTensorRT] = None
     ):
         """Initialize streaming service.
         
@@ -35,7 +35,7 @@ class StreamingService:
         self.camera = camera or CameraCapture()
         self.encoder = encoder or FrameEncoder()
         self.client_manager = client_manager or ClientManager()
-        self.face_detector = face_detector or FaceDetector()
+        self.face_detector = face_detector or FaceDetectorTensorRT()
         self.system_monitor = SystemMonitor()
         
         self.latest_frame: Optional[bytes] = None
