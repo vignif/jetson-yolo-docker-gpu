@@ -1,7 +1,10 @@
 """Camera capture module for Jetson with GStreamer pipeline."""
 import cv2
+import logging
 from typing import Optional, Tuple
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class CameraCapture:
@@ -24,7 +27,8 @@ class CameraCapture:
         self.fps = fps
         self.pipeline = self._build_pipeline()
         self.cap: Optional[cv2.VideoCapture] = None
-        self._open()
+        # Don't open camera in constructor - will open on first read
+        self._initialized = False
     
     def _build_pipeline(self) -> str:
         """Build GStreamer pipeline for NVMM-accelerated capture."""
@@ -36,11 +40,27 @@ class CameraCapture:
             f"appsink drop=true max-buffers=1"
         )
     
-    def _open(self) -> None:
-        """Open the video capture device."""
-        self.cap = cv2.VideoCapture(self.pipeline, cv2.CAP_GSTREAMER)
-        if not self.cap.isOpened():
-            raise RuntimeError("Failed to open camera capture")
+    def _open(self) -> bool:
+        """Open the video capture device.
+        
+        Returns:
+            True if successfully opened, False otherwise
+        """
+        if self.cap is not None and self.cap.isOpened():
+            return True
+            
+        try:
+            logger.info("Opening camera with pipeline: {}".format(self.pipeline))
+            self.cap = cv2.VideoCapture(self.pipeline, cv2.CAP_GSTREAMER)
+            if self.cap.isOpened():
+                self._initialized = True
+                logger.info("Camera opened successfully")
+                return True
+            logger.error("Camera failed to open - isOpened() returned False")
+            return False
+        except Exception as e:
+            logger.error("Exception opening camera: {}".format(e))
+            return False
     
     def read(self) -> Tuple[bool, Optional[np.ndarray]]:
         """Read a frame from the camera.
@@ -48,7 +68,12 @@ class CameraCapture:
         Returns:
             Tuple of (success: bool, frame: Optional[np.ndarray])
         """
-        if self.cap is None:
+        # Lazy initialization on first read
+        if not self._initialized:
+            if not self._open():
+                return False, None
+        
+        if self.cap is None or not self.cap.isOpened():
             return False, None
         return self.cap.read()
     

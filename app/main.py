@@ -127,6 +127,8 @@ async def stats():
         "memory_mb": memory["used_mb"],
         "memory_percent": memory["percent"],
         "face_detection_backend": streaming_service.face_detector.get_backend(),
+        "object_detection_enabled": streaming_service.is_object_detection_enabled(),
+        "object_detection_backend": streaming_service.object_detector.get_backend_name(),
         "temperature": system_stats["temperature"],
         "fan_speed": system_stats["fan_speed"],
         "power_mode": system_stats["power_mode"],
@@ -142,6 +144,11 @@ class QualityRequest(BaseModel):
 
 # Pydantic model for face detection request
 class FaceDetectionRequest(BaseModel):
+    enabled: bool
+
+
+# Pydantic model for object detection request
+class ObjectDetectionRequest(BaseModel):
     enabled: bool
 
 
@@ -185,6 +192,31 @@ async def get_face_detection():
     """Get current face detection status."""
     return {
         "enabled": streaming_service.face_detector.is_enabled()
+    }
+
+
+@app.post("/api/object-detection")
+async def set_object_detection(request: ObjectDetectionRequest):
+    """Enable or disable object detection.
+    
+    Args:
+        request: Object detection request with enabled flag
+    """
+    streaming_service.enable_object_detection(request.enabled)
+    
+    return {
+        "status": "ok",
+        "enabled": streaming_service.is_object_detection_enabled(),
+        "backend": streaming_service.object_detector.get_backend_name()
+    }
+
+
+@app.get("/api/object-detection")
+async def get_object_detection():
+    """Get current object detection status."""
+    return {
+        "enabled": streaming_service.is_object_detection_enabled(),
+        "backend": streaming_service.object_detector.get_backend_name()
     }
 
 

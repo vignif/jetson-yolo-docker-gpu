@@ -59,6 +59,16 @@
       </label>
     </label>
   </div>
+  <div style="max-width:800px;margin:10px auto;padding:10px;background:#222;border-radius:6px;">
+    <label style="display:flex;align-items:center;gap:10px;">
+      <span style="min-width:120px;">Object Detection:</span>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="objectDetectionToggle" style="width:20px;height:20px;cursor:pointer;">
+        <span id="objectDetectionStatus" style="color:#888;">Disabled</span>
+      </label>
+      <span id="objectDetectionBackend" style="font-size:11px;color:#666;margin-left:auto;"></span>
+    </label>
+  </div>
   <canvas id="videoCanvas" width="640" height="480" style="width:100%;display:block;"></canvas>
   <script>
     // Stats collapse/expand toggle
@@ -190,6 +200,44 @@
         faceDetectionStatus.style.color = data.enabled ? '#76b900' : '#888';
       } catch (e) {
         console.debug('Failed to get face detection status', e);
+      }
+    })();
+    
+    // Object detection control
+    const objectDetectionToggle = document.getElementById('objectDetectionToggle');
+    const objectDetectionStatus = document.getElementById('objectDetectionStatus');
+    const objectDetectionBackend = document.getElementById('objectDetectionBackend');
+    
+    objectDetectionToggle.addEventListener('change', async (e) => {
+      const enabled = e.target.checked;
+      try {
+        const res = await fetch('/api/object-detection', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({enabled})
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          objectDetectionStatus.textContent = data.enabled ? 'Enabled' : 'Disabled';
+          objectDetectionStatus.style.color = data.enabled ? '#76b900' : '#888';
+          objectDetectionBackend.textContent = data.backend || '';
+        }
+      } catch (e) {
+        console.error('Failed to toggle object detection', e);
+      }
+    });
+    
+    // Initialize object detection state
+    (async () => {
+      try {
+        const res = await fetch('/api/object-detection');
+        const data = await res.json();
+        objectDetectionToggle.checked = data.enabled;
+        objectDetectionStatus.textContent = data.enabled ? 'Enabled' : 'Disabled';
+        objectDetectionStatus.style.color = data.enabled ? '#76b900' : '#888';
+        objectDetectionBackend.textContent = data.backend || '';
+      } catch (e) {
+        console.debug('Failed to get object detection status', e);
       }
     })();
     

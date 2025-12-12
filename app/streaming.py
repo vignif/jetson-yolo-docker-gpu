@@ -9,6 +9,7 @@ from camera import CameraCapture
 from encoder import FrameEncoder
 from client_manager import ClientManager
 from face_detector_tensorrt import FaceDetectorTensorRT
+from object_detector import ObjectDetector
 from system_monitor import SystemMonitor
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,8 @@ class StreamingService:
         camera: Optional[CameraCapture] = None,
         encoder: Optional[FrameEncoder] = None,
         client_manager: Optional[ClientManager] = None,
-        face_detector: Optional[FaceDetectorTensorRT] = None
+        face_detector: Optional[FaceDetectorTensorRT] = None,
+        object_detector: Optional[ObjectDetector] = None
     ):
         """Initialize streaming service.
         
@@ -31,16 +33,21 @@ class StreamingService:
             encoder: Frame encoder instance (creates default if None)
             client_manager: Client manager instance (creates default if None)
             face_detector: Face detector instance (creates default if None)
+            object_detector: Object detector instance (creates default if None)
         """
         self.camera = camera or CameraCapture()
         self.encoder = encoder or FrameEncoder()
         self.client_manager = client_manager or ClientManager()
         self.face_detector = face_detector or FaceDetectorTensorRT()
+        self.object_detector = object_detector or ObjectDetector()
         self.system_monitor = SystemMonitor()
         
         self.latest_frame: Optional[bytes] = None
         self.is_running = False
         self.capture_task: Optional[asyncio.Task] = None
+        
+        # Feature flags
+        self._object_detection_enabled = False
         
         # FPS tracking
         self._frame_count = 0
@@ -90,6 +97,11 @@ class StreamingService:
                 if self.face_detector.is_enabled():
                     faces = self.face_detector.detect(frame)
                     frame = self.face_detector.draw_faces(frame, faces)
+                
+                # Apply object detection if enabled
+                if self._object_detection_enabled:
+                    objects = self.object_detector.detect(frame)
+                    frame = self.object_detector.draw_detections(frame, objects)
                 
                 # Encode frame to JPEG
                 success, jpeg_bytes = self.encoder.encode(frame)
@@ -158,3 +170,21 @@ class StreamingService:
         except Exception as e:
             logger.error(f"Error getting memory usage: {e}")
             return {"used_mb": 0, "percent": 0}
+    
+    def enable_object_detection(self, enabled: bool) -> None:
+        """Enable or disable object detection.
+        
+        Args:
+            enabled: Whether to enable object detection
+        """
+        self._object_detection_enabled = enabled
+        logger.info("Object detection {}".format("enabled" if enabled else "disabled"))
+    
+    def is_object_detection_enabled(self) -> bool:
+        """Check if object detection is enabled.
+        
+        Returns:
+            True if object detection is enabled
+        """
+        return self._object_detection_enabled
+
