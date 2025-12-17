@@ -1,30 +1,35 @@
-"""Simple object detection using torchvision MobileNet SSD for Jetson Nano."""
+"""Lightweight YOLOv5 nano object detection for Jetson Nano."""
 import cv2
 import numpy as np
 import torch
 import torchvision
 import logging
+import os
+import urllib.request
 from typing import List, Tuple
 
 logger = logging.getLogger(__name__)
 
 
 class ObjectDetector:
-    """Simple object detection using MobileNetV2 SSD optimized for Jetson Nano.
+    """Ultra-lightweight YOLOv5 nano optimized for Jetson Nano.
     
-    Uses torchvision's pre-trained model for real-time detection on 128 CUDA cores.
+    Uses YOLOv5n model with tunable parameters for real-time detection on 128 CUDA cores.
     """
     
-    def __init__(self, conf_threshold: float = 0.5):
+    def __init__(self, conf_threshold: float = 0.4, max_detections: int = 30):
         """Initialize object detector.
         
         Args:
-            conf_threshold: Confidence threshold for detections
+            conf_threshold: Confidence threshold for detections (0-1)
+            max_detections: Maximum number of detections per frame
         """
         self.conf_threshold = conf_threshold
+        self.max_detections = max_detections
         self.device = None
         self.model = None
         self.class_names = self._get_coco_names()
+        self.model_loading = False
         
         self._init_detector()
     
@@ -58,18 +63,20 @@ class ObjectDetector:
                     torch.cuda.get_device_properties(0).total_memory / 1024**3
                 ))
             
-            # Load pre-trained SSD model from torchvision
-            logger.info("Loading SSD MobileNetV2 model...")
+            # Use torchvision's lightweight SSDLite (faster, no external dependencies)
+            logger.info("Loading SSDLite MobileNetV3 (lightweight)...")
             self.model = torchvision.models.detection.ssdlite320_mobilenet_v3_large(pretrained=True)
             self.model.to(self.device)
             self.model.eval()
             
+            self.model_loading = False
             logger.info("Object detector initialized on {}".format(self.device))
             logger.info("Detecting {} object classes".format(len(self.class_names) - 1))
             
         except Exception as e:
             logger.error("Failed to initialize detector: {}".format(e))
             self.model = None
+            self.model_loading = False
     
     def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, str, float]]:
         """Detect objects in frame.
@@ -84,7 +91,7 @@ class ObjectDetector:
             return []
         
         try:
-            # Prepare input
+            # Prepare input for SSDLite
             img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             img_tensor = torch.from_numpy(img_rgb).permute(2, 0, 1).float() / 255.0
             img_tensor = img_tensor.unsqueeze(0).to(self.device)
@@ -93,19 +100,25 @@ class ObjectDetector:
             with torch.no_grad():
                 predictions = self.model(img_tensor)
             
-            # Parse results
+            # Parse results with tunable parameters
             detections = []
             boxes = predictions[0]['boxes'].cpu().numpy()
             labels = predictions[0]['labels'].cpu().numpy()
             scores = predictions[0]['scores'].cpu().numpy()
             
+            count = 0
             for box, label, score in zip(boxes, labels, scores):
-                if score >= self.conf_threshold and label < len(self.class_names):
-                    x1, y1, x2, y2 = map(int, box)
-                    w = x2 - x1
-                    h = y2 - y1
-                    class_name = self.class_names[label]
-                    detections.append((x1, y1, w, h, class_name, float(score)))
+                # Apply confidence threshold and max detections limit
+                if score >= self.conf_threshold and count < self.max_detections:
+                    if label < len(self.class_names):
+                        x1, y1, x2, y2 = map(int, box)
+                        w = x2 - x1
+                        h = y2 - y1
+                        class_name = self.class_names[label]
+                        # Skip background class
+                        if class_name != '__background__':
+                            detections.append((x1, y1, w, h, class_name, float(score)))
+                            count += 1
             
             return detections
             
@@ -152,8 +165,34 @@ class ObjectDetector:
     def get_backend_name(self) -> str:
         """Get the name of the detection backend."""
         if self.model is None:
-            return "None"
-        return "SSD-MobileNet-GPU" if self.device.type == "cuda" else "SSD-MobileNet-CPU"
+            return "SSDLite-Loading" if self.model_loading else "SSDLite-None"
+        return "SSDLite-GPU" if self.device.type == "cuda" else "SSDLite-CPU"
+    
+    def set_conf_threshold(self, threshold: float):
+        """Update confidence threshold.
+        
+        Args:
+            threshold: New confidence threshold (0-1)
+        """
+        self.conf_threshold = max(0.0, min(1.0, threshold))
+        logger.info("Confidence threshold updated to {:.2f}".format(self.conf_threshold))
+    
+    def set_max_detections(self, max_det: int):
+        """Update maximum detections per frame.
+        
+        Args:
+            max_det: Maximum number of detections
+        """
+        self.max_detections = max(1, min(100, max_det))
+        logger.info("Max detections updated to {}".format(self.max_detections))
+    
+    def get_conf_threshold(self) -> float:
+        """Get current confidence threshold."""
+        return self.conf_threshold
+    
+    def get_max_detections(self) -> int:
+        """Get current max detections setting."""
+        return self.max_detections
         if self.model is None:
             return "None"
         return "YOLOv5n-GPU" if self.device.type == 'cuda' else "YOLOv5n-CPU"

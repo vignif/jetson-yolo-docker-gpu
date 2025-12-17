@@ -69,6 +69,21 @@
       <span id="objectDetectionBackend" style="font-size:11px;color:#666;margin-left:auto;"></span>
     </label>
   </div>
+  <div style="max-width:800px;margin:10px auto;padding:10px;background:#222;border-radius:6px;" id="objectDetectionParams">
+    <div style="margin-bottom:10px;color:#999;font-size:12px;">Detection Parameters:</div>
+    <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <span style="min-width:140px;font-size:13px;">Confidence:</span>
+      <input type="range" id="confThreshold" min="0.1" max="0.9" value="0.4" step="0.05" 
+             style="flex:1;height:6px;background:#444;border-radius:3px;outline:none;">
+      <span id="confValue" style="min-width:40px;text-align:center;color:#76b900;font-size:13px;font-weight:bold;">0.40</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:10px;">
+      <span style="min-width:140px;font-size:13px;">Max Detections:</span>
+      <input type="range" id="maxDetections" min="5" max="50" value="30" step="5" 
+             style="flex:1;height:6px;background:#444;border-radius:3px;outline:none;">
+      <span id="maxDetValue" style="min-width:40px;text-align:center;color:#76b900;font-size:13px;font-weight:bold;">30</span>
+    </label>
+  </div>
   <canvas id="videoCanvas" width="640" height="480" style="width:100%;display:block;"></canvas>
   <script>
     // Stats collapse/expand toggle
@@ -236,10 +251,61 @@
         objectDetectionStatus.textContent = data.enabled ? 'Enabled' : 'Disabled';
         objectDetectionStatus.style.color = data.enabled ? '#76b900' : '#888';
         objectDetectionBackend.textContent = data.backend || '';
+        
+        // Initialize parameter values
+        if (data.conf_threshold !== undefined) {
+          confThreshold.value = data.conf_threshold;
+          confValue.textContent = data.conf_threshold.toFixed(2);
+        }
+        if (data.max_detections !== undefined) {
+          maxDetections.value = data.max_detections;
+          maxDetValue.textContent = data.max_detections;
+        }
       } catch (e) {
-        console.debug('Failed to get object detection status', e);
+        console.error('Failed to get object detection state', e);
       }
     })();
+    
+    // YOLOv5 parameter controls
+    const confThreshold = document.getElementById('confThreshold');
+    const confValue = document.getElementById('confValue');
+    const maxDetections = document.getElementById('maxDetections');
+    const maxDetValue = document.getElementById('maxDetValue');
+    
+    // Update display and send to backend on change
+    confThreshold.addEventListener('input', (e) => {
+      confValue.textContent = parseFloat(e.target.value).toFixed(2);
+    });
+    
+    confThreshold.addEventListener('change', async (e) => {
+      const conf_threshold = parseFloat(e.target.value);
+      try {
+        await fetch('/api/object-detection/params', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({conf_threshold})
+        });
+      } catch (err) {
+        console.error('Failed to update confidence threshold', err);
+      }
+    });
+    
+    maxDetections.addEventListener('input', (e) => {
+      maxDetValue.textContent = e.target.value;
+    });
+    
+    maxDetections.addEventListener('change', async (e) => {
+      const max_detections = parseInt(e.target.value);
+      try {
+        await fetch('/api/object-detection/params', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({max_detections})
+        });
+      } catch (err) {
+        console.error('Failed to update max detections', err);
+      }
+    });
     
     // Poll stats every second
     setInterval(async () => {

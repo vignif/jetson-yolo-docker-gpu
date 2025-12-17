@@ -85,13 +85,33 @@ class StreamingService:
     
     async def _capture_loop(self) -> None:
         """Main capture loop that reads frames and broadcasts to clients."""
+        logger.info("=== CAPTURE LOOP STARTED ===")
+        logger.info("Camera is_opened: {}".format(self.camera.is_opened()))
+        logger.info("Is running: {}".format(self.is_running))
+        
+        frame_count = 0
+        failed_reads = 0
         try:
             while self.is_running:
                 # Read frame from camera
                 success, frame = self.camera.read()
                 if not success:
+                    failed_reads += 1
+                    if frame_count == 0:
+                        logger.error("Failed to read first frame from camera (attempt {})".format(failed_reads))
+                    elif failed_reads % 100 == 0:
+                        logger.warning("Camera read failures: {}".format(failed_reads))
                     await asyncio.sleep(0.01)
                     continue
+                
+                if failed_reads > 0:
+                    logger.info("Camera read recovered after {} failures".format(failed_reads))
+                    failed_reads = 0
+                
+                if frame_count == 0:
+                    logger.info("=== FIRST FRAME READ: {}x{} ===".format(frame.shape[1], frame.shape[0]))
+                
+                frame_count += 1
                 
                 # Apply face detection if enabled
                 if self.face_detector.is_enabled():
@@ -106,8 +126,14 @@ class StreamingService:
                 # Encode frame to JPEG
                 success, jpeg_bytes = self.encoder.encode(frame)
                 if not success:
+                    logger.warning("Failed to encode frame {}".format(frame_count))
                     await asyncio.sleep(0)
                     continue
+                
+                if frame_count == 1:
+                    logger.info("=== FIRST FRAME ENCODED: {} bytes ===".format(len(jpeg_bytes)))
+                elif frame_count % 100 == 0:
+                    logger.info("Frame {} encoded: {} bytes".format(frame_count, len(jpeg_bytes)))
                 
                 # Store latest frame
                 self.latest_frame = jpeg_bytes
@@ -118,11 +144,19 @@ class StreamingService:
                 elapsed = current_time - self._fps_start_time
                 if elapsed >= self._fps_update_interval:
                     self.fps = self._frame_count / elapsed
+                    if self._frame_count > 0:
+                        logger.info("FPS: {:.1f}, Frames: {}, Clients: {}".format(self.fps, frame_count, self.client_manager.get_client_count()))
                     self._frame_count = 0
                     self._fps_start_time = current_time
                 
                 # Broadcast to all clients
-                await self.client_manager.broadcast(jpeg_bytes)
+                client_count = self.client_manager.get_client_count()
+                if client_count > 0:
+                    await self.client_manager.broadcast(jpeg_bytes)
+                    if frame_count == 1:
+                        logger.info("=== FIRST FRAME BROADCAST to {} clients ===".format(client_count))
+                elif frame_count % 100 == 0:
+                    logger.warning("Frame {} produced but NO CLIENTS connected".format(frame_count))
                 
                 # Yield to event loop
                 await asyncio.sleep(0)

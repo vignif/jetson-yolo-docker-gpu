@@ -1,11 +1,14 @@
 """Main FastAPI application for Jetson camera streaming."""
 import logging
+import sys
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+from typing import Optional
 
 from streaming import StreamingService
 
@@ -15,6 +18,15 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Run tests before starting application (only if RUN_TESTS env var is set)
+if os.environ.get('RUN_TESTS', '').lower() == 'true':
+    from run_tests import run_tests
+    logger.info("Running test suite before application startup...")
+    if not run_tests():
+        logger.error("Tests failed! Application will not start.")
+        sys.exit(1)
+    logger.info("All tests passed! Starting application...")
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -78,14 +90,22 @@ async def ws_video(websocket: WebSocket):
     
     Clients connect here to receive real-time video frames.
     """
+    client_id = id(websocket)
+    logger.info("WebSocket connection attempt from client {}".format(client_id))
+    
     await websocket.accept()
+    logger.info("WebSocket accepted for client {}".format(client_id))
     streaming_service.client_manager.add_client(websocket)
+    logger.info("Client {} added. Total: {}".format(client_id, streaming_service.get_client_count()))
     
     try:
         # Send latest frame immediately if available
         latest_frame = streaming_service.get_latest_frame()
         if latest_frame is not None:
+            logger.info("Sending latest frame ({} bytes) to client {}".format(len(latest_frame), client_id))
             await websocket.send_bytes(latest_frame)
+        else:
+            logger.warning("No latest frame available for client {}".format(client_id))
         
         # Keep connection alive
         # The streaming service broadcasts frames to all clients
@@ -94,11 +114,12 @@ async def ws_video(websocket: WebSocket):
             # Could add ping/pong here if needed
     
     except WebSocketDisconnect:
-        logger.debug("Client disconnected normally")
+        logger.info("Client {} disconnected normally".format(client_id))
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
+        logger.error("WebSocket error for client {}: {}".format(client_id, e))
     finally:
         streaming_service.client_manager.remove_client(websocket)
+        logger.info("Client {} removed. Remaining: {}".format(client_id, streaming_service.get_client_count()))
 
 
 @app.get("/health")
@@ -216,7 +237,35 @@ async def get_object_detection():
     """Get current object detection status."""
     return {
         "enabled": streaming_service.is_object_detection_enabled(),
-        "backend": streaming_service.object_detector.get_backend_name()
+        "backend": streaming_service.object_detector.get_backend_name(),
+        "conf_threshold": streaming_service.object_detector.get_conf_threshold(),
+        "max_detections": streaming_service.object_detector.get_max_detections()
+    }
+
+
+class ObjectDetectionParamsRequest(BaseModel):
+    """Request model for updating object detection parameters."""
+    conf_threshold: Optional[float] = None
+    max_detections: Optional[int] = None
+
+
+@app.post("/api/object-detection/params")
+async def set_object_detection_params(request: ObjectDetectionParamsRequest):
+    """Update object detection parameters.
+    
+    Args:
+        request: Parameters to update (conf_threshold, max_detections)
+    """
+    if request.conf_threshold is not None:
+        streaming_service.object_detector.set_conf_threshold(request.conf_threshold)
+    
+    if request.max_detections is not None:
+        streaming_service.object_detector.set_max_detections(request.max_detections)
+    
+    return {
+        "status": "ok",
+        "conf_threshold": streaming_service.object_detector.get_conf_threshold(),
+        "max_detections": streaming_service.object_detector.get_max_detections()
     }
 
 
