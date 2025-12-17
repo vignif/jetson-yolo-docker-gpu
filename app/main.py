@@ -147,9 +147,9 @@ async def stats():
         "jpeg_quality": streaming_service.encoder.quality,
         "memory_mb": memory["used_mb"],
         "memory_percent": memory["percent"],
-        "face_detection_backend": streaming_service.face_detector.get_backend(),
-        "object_detection_enabled": streaming_service.is_object_detection_enabled(),
-        "object_detection_backend": streaming_service.object_detector.get_backend_name(),
+        "detection_enabled": streaming_service.is_detection_enabled(),
+        "detection_backend": streaming_service.detector.get_backend_name(),
+        "selected_classes_count": len(streaming_service.get_selected_classes()),
         "temperature": system_stats["temperature"],
         "fan_speed": system_stats["fan_speed"],
         "power_mode": system_stats["power_mode"],
@@ -190,82 +190,79 @@ async def set_quality(request: QualityRequest):
     }
 
 
-@app.post("/api/face-detection")
-async def set_face_detection(request: FaceDetectionRequest):
-    """Enable or disable face detection.
+@app.post("/api/detection")
+async def set_detection(request: ObjectDetectionRequest):
+    """Enable or disable detection.
     
     Args:
-        request: Face detection request with enabled flag
+        request: Detection request with enabled flag
     """
-    if request.enabled:
-        streaming_service.face_detector.enable()
-    else:
-        streaming_service.face_detector.disable()
+    streaming_service.enable_detection(request.enabled)
     
     return {
         "status": "ok",
-        "enabled": streaming_service.face_detector.is_enabled()
+        "enabled": streaming_service.is_detection_enabled(),
+        "backend": streaming_service.detector.get_backend_name()
     }
 
 
-@app.get("/api/face-detection")
-async def get_face_detection():
-    """Get current face detection status."""
+@app.get("/api/detection")
+async def get_detection():
+    """Get current detection status."""
     return {
-        "enabled": streaming_service.face_detector.is_enabled()
+        "enabled": streaming_service.is_detection_enabled(),
+        "backend": streaming_service.detector.get_backend_name(),
+        "selected_classes": streaming_service.get_selected_classes()
     }
 
 
-@app.post("/api/object-detection")
-async def set_object_detection(request: ObjectDetectionRequest):
-    """Enable or disable object detection.
+@app.get("/api/detection/classes")
+async def get_available_classes():
+    """Get list of all available detection classes."""
+    from yolo_detector import YOLOv5Detector
+    return {
+        "classes": YOLOv5Detector.get_available_classes()
+    }
+
+
+class ClassSelectionRequest(BaseModel):
+    """Request model for selecting detection classes."""
+    class_indices: list
+
+
+@app.post("/api/detection/classes")
+async def set_selected_classes(request: ClassSelectionRequest):
+    """Set which object classes to detect.
     
     Args:
-        request: Object detection request with enabled flag
+        request: List of class indices to detect
     """
-    streaming_service.enable_object_detection(request.enabled)
+    streaming_service.set_selected_classes(request.class_indices)
     
     return {
         "status": "ok",
-        "enabled": streaming_service.is_object_detection_enabled(),
-        "backend": streaming_service.object_detector.get_backend_name()
+        "selected_classes": streaming_service.get_selected_classes()
     }
 
 
-@app.get("/api/object-detection")
-async def get_object_detection():
-    """Get current object detection status."""
-    return {
-        "enabled": streaming_service.is_object_detection_enabled(),
-        "backend": streaming_service.object_detector.get_backend_name(),
-        "conf_threshold": streaming_service.object_detector.get_conf_threshold(),
-        "max_detections": streaming_service.object_detector.get_max_detections()
-    }
-
-
-class ObjectDetectionParamsRequest(BaseModel):
-    """Request model for updating object detection parameters."""
+class DetectionParamsRequest(BaseModel):
+    """Request model for updating detection parameters."""
     conf_threshold: Optional[float] = None
-    max_detections: Optional[int] = None
 
 
-@app.post("/api/object-detection/params")
-async def set_object_detection_params(request: ObjectDetectionParamsRequest):
-    """Update object detection parameters.
+@app.post("/api/detection/params")
+async def set_detection_params(request: DetectionParamsRequest):
+    """Update detection parameters.
     
     Args:
-        request: Parameters to update (conf_threshold, max_detections)
+        request: Parameters to update (conf_threshold)
     """
     if request.conf_threshold is not None:
-        streaming_service.object_detector.set_conf_threshold(request.conf_threshold)
-    
-    if request.max_detections is not None:
-        streaming_service.object_detector.set_max_detections(request.max_detections)
+        streaming_service.detector.set_conf_threshold(request.conf_threshold)
     
     return {
         "status": "ok",
-        "conf_threshold": streaming_service.object_detector.get_conf_threshold(),
-        "max_detections": streaming_service.object_detector.get_max_detections()
+        "conf_threshold": streaming_service.detector.conf_threshold
     }
 
 

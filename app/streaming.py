@@ -3,13 +3,12 @@ import asyncio
 import logging
 import time
 import psutil
-from typing import Optional
+from typing import Optional, List
 
 from camera import CameraCapture
 from encoder import FrameEncoder
 from client_manager import ClientManager
-from face_detector_tensorrt import FaceDetectorTensorRT
-from object_detector import ObjectDetector
+from yolo_detector import YOLOv5Detector
 from system_monitor import SystemMonitor
 
 logger = logging.getLogger(__name__)
@@ -23,8 +22,7 @@ class StreamingService:
         camera: Optional[CameraCapture] = None,
         encoder: Optional[FrameEncoder] = None,
         client_manager: Optional[ClientManager] = None,
-        face_detector: Optional[FaceDetectorTensorRT] = None,
-        object_detector: Optional[ObjectDetector] = None
+        detector: Optional[YOLOv5Detector] = None
     ):
         """Initialize streaming service.
         
@@ -32,14 +30,12 @@ class StreamingService:
             camera: Camera capture instance (creates default if None)
             encoder: Frame encoder instance (creates default if None)
             client_manager: Client manager instance (creates default if None)
-            face_detector: Face detector instance (creates default if None)
-            object_detector: Object detector instance (creates default if None)
+            detector: YOLO detector instance (creates default if None)
         """
         self.camera = camera or CameraCapture()
         self.encoder = encoder or FrameEncoder()
         self.client_manager = client_manager or ClientManager()
-        self.face_detector = face_detector or FaceDetectorTensorRT()
-        self.object_detector = object_detector or ObjectDetector()
+        self.detector = detector or YOLOv5Detector()
         self.system_monitor = SystemMonitor()
         
         self.latest_frame: Optional[bytes] = None
@@ -47,8 +43,7 @@ class StreamingService:
         self.capture_task: Optional[asyncio.Task] = None
         
         # Feature flags
-        self._object_detection_enabled = False
-        
+        self._detection_enabled = True  # Enabled by default
         # FPS tracking
         self._frame_count = 0
         self._fps_start_time = time.time()
@@ -113,15 +108,10 @@ class StreamingService:
                 
                 frame_count += 1
                 
-                # Apply face detection if enabled
-                if self.face_detector.is_enabled():
-                    faces = self.face_detector.detect(frame)
-                    frame = self.face_detector.draw_faces(frame, faces)
-                
                 # Apply object detection if enabled
-                if self._object_detection_enabled:
-                    objects = self.object_detector.detect(frame)
-                    frame = self.object_detector.draw_detections(frame, objects)
+                if self._detection_enabled:
+                    detections = self.detector.detect(frame)
+                    frame = self.detector.draw_detections(frame, detections)
                 
                 # Encode frame to JPEG
                 success, jpeg_bytes = self.encoder.encode(frame)
@@ -205,20 +195,36 @@ class StreamingService:
             logger.error(f"Error getting memory usage: {e}")
             return {"used_mb": 0, "percent": 0}
     
-    def enable_object_detection(self, enabled: bool) -> None:
-        """Enable or disable object detection.
+    def enable_detection(self, enabled: bool) -> None:
+        """Enable or disable detection.
         
         Args:
-            enabled: Whether to enable object detection
+            enabled: Whether to enable detection
         """
-        self._object_detection_enabled = enabled
-        logger.info("Object detection {}".format("enabled" if enabled else "disabled"))
+        self._detection_enabled = enabled
+        logger.info("Detection {}".format("enabled" if enabled else "disabled"))
     
-    def is_object_detection_enabled(self) -> bool:
-        """Check if object detection is enabled.
+    def is_detection_enabled(self) -> bool:
+        """Check if detection is enabled.
         
         Returns:
-            True if object detection is enabled
+            True if detection is enabled
         """
-        return self._object_detection_enabled
+        return self._detection_enabled
+    
+    def set_selected_classes(self, class_indices: List[int]) -> None:
+        """Set which object classes to detect.
+        
+        Args:
+            class_indices: List of class indices to detect
+        """
+        self.detector.set_selected_classes(class_indices)
+    
+    def get_selected_classes(self) -> List[int]:
+        """Get currently selected class indices.
+        
+        Returns:
+            List of selected class indices
+        """
+        return self.detector.get_selected_classes()
 
