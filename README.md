@@ -4,8 +4,6 @@ Real-time camera streaming application for NVIDIA Jetson Nano with Raspberry Pi 
 
 ![example](docs/example.png)
 
-
-
 ## Features
 
 - 🎥 **Hardware-accelerated video capture** via GStreamer with NVMM zero-copy
