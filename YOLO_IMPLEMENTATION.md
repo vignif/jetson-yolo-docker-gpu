@@ -54,15 +54,15 @@ Complete implementation of lightweight YOLOv5n object detection with user-select
 ### Step 1: Deploy Code
 ```bash
 # From Mac
-./deploy.sh
+./scripts/deploy.sh
 ```
 
-### Step 2: Reset Camera (if needed)
+### Step 2: Build and Start Container
 ```bash
 # On Jetson
 ssh nvidia@192.168.1.67
 cd jetson-webcam
-./camera_reset.sh  # Only if seeing "Failed to create CaptureSession"
+sudo docker-compose up -d --build
 ```
 
 ### Step 3: Rebuild Container

@@ -144,7 +144,7 @@ ssh nvidia@192.168.1.67 'cd jetson-webcam && sudo docker-compose exec jetson-vis
 
 ## Next Steps
 
-1. ✅ Deploy: `./deploy.sh`
+1. ✅ Deploy: `./scripts/deploy.sh`
 2. ✅ Rebuild: `ssh nvidia@192.168.1.67 'cd jetson-webcam && sudo docker-compose up -d --build'`
 3. ✅ Wait for build (5-10 min)
 4. ✅ Check GPU dashboard: http://192.168.1.67:8000/gpu
