@@ -2,7 +2,9 @@
 
 Real-time camera streaming application for NVIDIA Jetson Nano with Raspberry Pi Camera Module v2.
 
-[example](docs/example.png)
+![example](docs/example.png)
+
+
 
 ## Features
 
