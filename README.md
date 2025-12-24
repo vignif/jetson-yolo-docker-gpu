@@ -38,10 +38,11 @@ Prerequisites
 
 ```bash
 # Deploy files from your computer to Jetson
-./scripts/deploy.sh nvidia 192.168.1.67 jetson-webcam
+./scripts/deploy.sh nvidia <JETSON-IP> jetson-webcam
+# example ./scripts/deploy.sh nvidia 192.168.1.58 jetson-webcam
 
 # SSH into Jetson and start the container
-ssh nvidia@192.168.1.67
+ssh nvidia@<JETSON-IP>
 cd jetson-webcam
 sudo docker-compose up -d --build
 ``` with live video stream
@@ -52,11 +53,11 @@ sudo docker-compose up -d --build
 - `GET /api/gpu-status` - GPU and TensorRT status
 - `POST /api/run-gpu-tests` - Run GPU validation test
 Open in your browser:
-- **Main Stream**: http://192.168.1.67:8000/
-- **GPU Status**: http://192.168.1.67:8000/gpu
+- **Main Stream**: http://<JETSON-IP>:8000/
+- **GPU Status**: http://<JETSON-IP>:8000/gpu
 
 Open in your browser:
-- http://192.168.1.67:8000/
+- http://<JETSON-IP>:8000/
 
 ## API Endpoints
 
@@ -167,7 +168,7 @@ cd jetson-webcam
 ./scripts/run_tests.sh
 
 # From development machine (runs tests remotely)
-ssh nvidia@192.168.1.67 "cd jetson-webcam && ./scripts/run_tests.sh"
+ssh nvidia@<JETSON-IP> "cd jetson-webcam && ./scripts/run_tests.sh"
 
 # Or use docker-compose directly
 sudo docker-compose exec jetson-vision python3 -m pytest tests/ -v
@@ -189,7 +190,7 @@ docker-compose logs -f jetson-vision
 
 ### View Statistics
 ```bash
-curl http://192.168.1.67:8000/api/stats | python3 -m json.tool
+curl http://<JETSON-IP>:8000/api/stats | python3 -m json.tool
 ```
 
 ### GPU Monitoring
