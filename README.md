@@ -200,14 +200,15 @@ docker-compose exec jetson-vision python3 -c "import tensorrt as trt; print(trt.
 
 ###Additional Documentation
 
-- [GPU Implementation Details](GPU_IMPLEMENTATION.md) - TensorRT and CUDA setup
-- [GPU Testing Guide](GPU_TESTING.md) - Validation and benchmarking
-- [YOLO Implementation](YOLO_IMPLEMENTATION.md) - YOLOv8 integration details
-- [Quick Reference](QUICKSTART.md) - Common commands and URLs
+- [Quick Reference](docs/QUICKSTART.md) - Common commands and URLs
+- [YOLO Implementation](docs/YOLO_IMPLEMENTATION.md) - YOLOv8 integration details
+- [Contributing Guide](docs/CONTRIBUTING.md) - How to contribute
+
+See the [docs/](docs/) directory for more detailed documentation.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please read our [Contributing Guide](docs/CONTRIBUTING.md) before submitting a Pull Request.
 
 ## License
 
