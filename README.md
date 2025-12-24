@@ -4,13 +4,16 @@ Real-time camera streaming application for NVIDIA Jetson Nano with Raspberry Pi 
 
 ## Features
 
-- 🎥 **Hardware-accelerated video capture** via GStreamer with NVMM
-- 🧠 **AI-powered detection** with YOLOv8 and face detection (TensorRT optimized)
-- 🌐 **WebSocket-based streaming** for ultra-low latency
+- 🎥 **Hardware-accelerated video capture** via GStreamer with NVMM zero-copy
+- 🧠 **Real-time object detection** with YOLOv5n (COCO 80 classes)
+- 🎯 **Configurable detection** - select specific object classes to detect
+- 🌐 **WebSocket-based streaming** for ultra-low latency (<100ms)
 - 👥 **Multiple simultaneous viewers** support
-- 📊 **GPU monitoring** and health check endpoints
+- 🔧 **Live quality control** - adjust JPEG quality and detection confidence
+- 📊 **GPU monitoring** with TensorRT and CUDA status
+- 🌡️ **System telemetry** - temperature, CPU usage, power mode
 - 🐳 **Fully containerized** with Docker for easy deployment
-- ⚡ **CUDA/TensorRT acceleration** for real-time inference
+- ⚡ **GPU acceleration** with PyTorch CUDA support
 
 ## Architecture
 
@@ -21,9 +24,10 @@ The application is structured into modular components:
 - **`client_manager.py`** - WebSocket client lifecycle and broadcasting
 - **`streaming.py`** - Main streaming service orchestration
 - **`main.py`** - FastAPI application and HTTP/WebSocket endpoints
-- **`yolo_detector.py`** - YOLOv8 object detection with TensorRT
-- **`face_detector.py`** - Face detection with OpenCV DNN and Haar Cascade
-- **`gpu_health_check.py`** - GPU status monitoring and validation
+- **`yolo_detector.py`** - YOLOv5n object detection with PyTorch (80 COCO classes)
+- **`object_detector.py`** - Abstract detector interface
+- **`system_monitor.py`** - System telemetry (temp, CPU, power)
+- **`gpu_health_check.py`** - GPU validation and TensorRT checks
 Prerequisites
 
 - NVIDIA Jetson Nano with JetPack 4.x (L4T R32.x)
@@ -60,6 +64,31 @@ Open in your browser:
 - `WebSocket /ws/video` - Video stream endpoint
 - `GET /health` - Health check with client count
 - `GET /api/stats` - Detailed streaming statistics
+
+## Object Detection
+
+The application includes real-time object detection using YOLOv5n trained on the COCO dataset.
+
+### Supported Classes (80 COCO objects)
+
+**People & Animals**: person, bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe
+
+**Vehicles**: bicycle, car, motorcycle, airplane, bus, train, truck, boat
+
+**Indoor Objects**: chair, couch, bed, dining table, toilet, tv, laptop, keyboard, cell phone, book, clock
+
+**Kitchen**: bottle, wine glass, cup, fork, knife, spoon, bowl, banana, apple, sandwich, orange, pizza
+
+**Sports & Recreation**: frisbee, skis, snowboard, sports ball, kite, baseball bat, skateboard, surfboard, tennis racket
+
+[See full list in app/yolo_detector.py]
+
+### Configuration via Web UI
+
+1. **Toggle Detection** - Enable/disable real-time detection
+2. **Select Classes** - Choose which objects to detect (default: person only)
+3. **Adjust Confidence** - Set detection threshold (default: 0.4)
+4. **Quality Control** - Adjust JPEG quality for bandwidth optimization
 
 ## Configuration
 
